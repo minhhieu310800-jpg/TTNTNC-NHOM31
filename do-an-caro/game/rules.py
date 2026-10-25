@@ -1,9 +1,9 @@
 """Rules and win condition checking for Caro (Gomoku).
 
 Supports:
-- Vietnamese rules (default): 5 or more in a row, not blocked at both ends.
+- Freestyle rules (default, international Gomoku): 5 or more in a row wins unconditionally.
+- Vietnamese rules: 5 or more in a row, not blocked at both ends.
   Board boundary is not considered a block.
-- Freestyle rules: 5 or more in a row wins unconditionally.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from game.constants import (
+    DEFAULT_RULE,
     DIRECTIONS,
     EMPTY,
     RULE_FREESTYLE,
@@ -23,7 +24,7 @@ def check_win_at(
     board: np.ndarray,
     row: int,
     col: int,
-    rule: str = RULE_VIETNAM,
+    rule: str = DEFAULT_RULE,
     win_streak: int = WIN_STREAK,
 ) -> bool:
     """Kiểm tra cục bộ xem nước đi tại (row, col) có tạo thành chuỗi thắng hay không.
@@ -34,7 +35,7 @@ def check_win_at(
         board: Mảng 2D int8 biểu diễn bàn cờ.
         row: Chỉ số hàng của ô vừa đánh.
         col: Chỉ số cột của ô vừa đánh.
-        rule: "vietnam" (mặc định) hoặc "freestyle".
+        rule: "freestyle" (mặc định) hoặc "vietnam".
         win_streak: Số quân tối thiểu liên tiếp để thắng (mặc định: 5).
 
     Returns:
@@ -96,7 +97,7 @@ def check_win_at(
 def check_win_global(
     board: np.ndarray,
     player: int,
-    rule: str = RULE_VIETNAM,
+    rule: str = DEFAULT_RULE,
     win_streak: int = WIN_STREAK,
 ) -> bool:
     """Quét toàn bộ bàn cờ để kiểm tra xem `player` có chuỗi thắng hay không.
@@ -106,7 +107,7 @@ def check_win_global(
     Args:
         board: Mảng 2D int8 biểu diễn bàn cờ.
         player: Người chơi cần kiểm tra (BLACK=1 hoặc WHITE=-1).
-        rule: "vietnam" hoặc "freestyle".
+        rule: "freestyle" (mặc định) hoặc "vietnam".
         win_streak: Số quân tối thiểu liên tiếp để thắng.
 
     Returns:

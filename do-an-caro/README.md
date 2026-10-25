@@ -2,7 +2,7 @@
 
 Đồ án cuối kỳ môn Trí tuệ nhân tạo nâng cao (TTNTNC) – Trường Đại học Sài Gòn – Nhóm 31.
 
-Xây dựng game Caro 11×11 (luật Việt Nam: thắng 5 quân, không bị chặn hai đầu) với 8 cấp tác tử AI, từ Random đến AlphaZero-inspired, và đánh giá bằng giải đấu round-robin.
+Xây dựng game Caro 11×11 (luật tự do quốc tế – freestyle Gomoku: 5 quân liên tiếp trở lên là thắng, không xét chặn hai đầu, không có luật cấm Renju) với 8 cấp tác tử AI, từ Random đến AlphaZero-inspired, và đánh giá bằng giải đấu round-robin.
 
 > README này hiện chỉ ghi **quy ước làm việc chung**. Phần cài đặt, train và demo chi tiết sẽ bổ sung ở issue #17.
 

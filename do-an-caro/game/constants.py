@@ -13,7 +13,10 @@ WIN_STREAK: Final[int] = 5
 
 # Luật chơi
 RULE_VIETNAM: Final[str] = "vietnam"      # Thắng >= 5 quân, không bị chặn 2 đầu, biên không tính chặn
-RULE_FREESTYLE: Final[str] = "freestyle"  # Thắng >= 5 quân liên tiếp bất kể bị chặn
+RULE_FREESTYLE: Final[str] = "freestyle"  # Thắng >= 5 quân liên tiếp bất kể bị chặn (luật quốc tế)
+
+# Luật mặc định của đồ án: Gomoku tự do quốc tế (freestyle)
+DEFAULT_RULE: Final[str] = RULE_FREESTYLE
 
 # 4 hướng kiểm tra thắng: (dr, dc)
 # (0, 1): Ngang, (1, 0): Dọc, (1, 1): Chéo chính \, (1, -1): Chéo phụ /

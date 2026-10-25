@@ -282,3 +282,19 @@ class TestGeneralizationConfig:
 
         assert game.is_terminal() is True
         assert game.result() == BLACK
+
+
+def test_default_rule_is_freestyle():
+    """Luật mặc định của đồ án là Gomoku tự do quốc tế."""
+    from game.constants import DEFAULT_RULE
+
+    assert DEFAULT_RULE == RULE_FREESTYLE
+    assert CaroGame().rule == RULE_FREESTYLE
+
+    # Chuỗi 5 bị chặn hai đầu vẫn thắng khi dùng luật mặc định
+    board = np.zeros((11, 11), dtype=np.int8)
+    board[5, 2] = WHITE
+    board[5, 3:8] = BLACK
+    board[5, 8] = WHITE
+    assert check_win_at(board, 5, 5) is True
+    assert check_win_global(board, BLACK) is True

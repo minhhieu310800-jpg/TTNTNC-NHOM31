@@ -1,6 +1,6 @@
 game:
   size: 11
-  rule: "vietnam"  # "vietnam" (thắng 5, không bị chặn 2 đầu, biên không tính chặn) hoặc "freestyle"
+  rule: "freestyle"  # "freestyle" (luật quốc tế: >= 5 quân là thắng) hoặc "vietnam" (không thắng nếu bị chặn 2 đầu)
   win_streak: 5
 
 seed: 42

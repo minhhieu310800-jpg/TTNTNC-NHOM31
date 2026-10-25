@@ -16,6 +16,7 @@ from __future__ import annotations
 import numpy as np
 
 from game.constants import (
+    DEFAULT_RULE,
     BLACK,
     DEFAULT_BOARD_SIZE,
     EMPTY,
@@ -34,14 +35,14 @@ class CaroGame:
     def __init__(
         self,
         size: int = DEFAULT_BOARD_SIZE,
-        rule: str = RULE_VIETNAM,
+        rule: str = DEFAULT_RULE,
         win_streak: int = WIN_STREAK,
     ) -> None:
         """Khởi tạo bàn cờ Caro.
 
         Args:
             size: Kích thước bàn cờ (mặc định: 11).
-            rule: Luật kiểm tra thắng ("vietnam" hoặc "freestyle").
+            rule: Luật kiểm tra thắng ("freestyle" - mặc định, hoặc "vietnam").
             win_streak: Số quân liên tiếp tối thiểu để thắng (mặc định: 5).
         """
         if size < win_streak:

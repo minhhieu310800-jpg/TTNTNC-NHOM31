@@ -7,6 +7,7 @@ from game.constants import (
     PLAYER_SYMBOLS,
     RULE_FREESTYLE,
     RULE_VIETNAM,
+    DEFAULT_RULE,
     WHITE,
     WIN_STREAK,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "DEFAULT_BOARD_SIZE",
     "WIN_STREAK",
     "RULE_VIETNAM",
+    "DEFAULT_RULE",
     "RULE_FREESTYLE",
     "check_win_at",
     "check_win_global",
