@@ -18,11 +18,13 @@ class RandomAgent(Agent):
 
     def __init__(self, seed: int | None = None) -> None:
         """Khởi tạo RandomAgent với seed cố định hoặc ngẫu nhiên."""
+        super().__init__()
         self.seed = seed
         self.rng = random.Random(seed)
 
     def select_action(self, state: CaroGame, budget: float | None = None) -> int:
         """Chọn đều một nước đi từ state.legal_actions()."""
+        self.last_stats = {}
         legal = state.legal_actions()
         if not legal:
             raise ValueError("Không còn nước đi hợp lệ nào trên bàn cờ.")

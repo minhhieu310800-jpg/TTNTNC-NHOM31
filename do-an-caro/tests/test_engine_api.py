@@ -217,3 +217,18 @@ class TestFullBoardDraw:
         assert len(game.legal_actions()) == 0
         assert game.get_reward(BLACK) == 0.0
         assert game.get_reward(WHITE) == 0.0
+
+    def test_engine_version(self):
+        """Kiểm tra ENGINE_VERSION có mặt và đúng phiên bản 1.0.0."""
+        from game import ENGINE_VERSION
+        from game.constants import ENGINE_VERSION as CONST_VERSION
+        assert ENGINE_VERSION == "1.0.0"
+        assert CONST_VERSION == "1.0.0"
+
+    def test_agent_base_interface_last_stats(self):
+        """Kiểm tra Agent interface có thuộc tính last_stats mặc định là dict rỗng."""
+        from agents.base import Agent
+        agent = Agent()
+        assert hasattr(agent, "last_stats")
+        assert agent.last_stats == {}
+
