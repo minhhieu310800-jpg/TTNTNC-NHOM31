@@ -7,6 +7,9 @@ BLACK: Final[int] = 1   # Quân X, đi trước
 WHITE: Final[int] = -1  # Quân O, đi sau
 EMPTY: Final[int] = 0   # Ô trống
 
+# Phiên bản engine
+ENGINE_VERSION: Final[str] = "1.0.0"
+
 # Cấu hình mặc định
 DEFAULT_BOARD_SIZE: Final[int] = 11
 WIN_STREAK: Final[int] = 5
