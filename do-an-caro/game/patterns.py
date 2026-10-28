@@ -33,14 +33,14 @@ if TYPE_CHECKING:
 # Tên các mẫu hình chuẩn trong cờ Caro / Gomoku
 PATTERN_FIVE: Final[str] = "five"                    # 5 quân liên tiếp (thắng ngay)
 PATTERN_OPEN_FOUR: Final[str] = "open_four"          # Bốn mở (_XXXX_): không thể cản
-PATTERN_BLOCKED_FOUR: Final[str] = "blocked_four"    # Bốn đóng / chặn 1 đầu / bốn có lỗ
-PATTERN_OPEN_THREE: Final[str] = "open_three"        # Ba mở (_XXX_): dọa lên bốn mở
-PATTERN_BLOCKED_THREE: Final[str] = "blocked_three"  # Ba đóng / chặn 1 đầu
-PATTERN_OPEN_TWO: Final[str] = "open_two"            # Hai mở (_XX_)
+PATTERN_BLOCKED_FOUR: Final[str] = "blocked_four"    # Bốn đóng / chặn 1 đầu / bốn có khe (XXX_X, XX_XX, X_XXX)
+PATTERN_OPEN_THREE: Final[str] = "open_three"        # Ba mở (_XXX_ / _XX_X_ / _X_XX_): dọa lên bốn mở
+PATTERN_BLOCKED_THREE: Final[str] = "blocked_three"  # Ba đóng / chặn 1 đầu / ba có khe
+PATTERN_OPEN_TWO: Final[str] = "open_two"            # Hai mở (_XX_ / _X_X_)
 PATTERN_BLOCKED_TWO: Final[str] = "blocked_two"      # Hai đóng / chặn 1 đầu
-PATTERN_OPEN_ONE: Final[str] = "open_one"            # Một quân có không gian phát triển
+PATTERN_OPEN_ONE: Final[str] = "open_one"            # Một quân đơn lẻ
 
-# Thang điểm đánh giá mẫu hình
+# Thang điểm đánh giá mẫu hình chuẩn
 PATTERN_SCORES: Final[dict[str, int]] = {
     PATTERN_FIVE: 100_000_000,
     PATTERN_OPEN_FOUR: 10_000_000,
@@ -49,10 +49,10 @@ PATTERN_SCORES: Final[dict[str, int]] = {
     PATTERN_BLOCKED_THREE: 1_000,
     PATTERN_OPEN_TWO: 500,
     PATTERN_BLOCKED_TWO: 50,
-    PATTERN_OPEN_ONE: 10,
+    PATTERN_OPEN_ONE: 0,
 }
 
-# Điểm số thứ tự ưu tiên (cho phát hiện đòn)
+# Điểm số thứ tự ưu tiên (cho phát hiện mẫu hình mạnh nhất)
 _RANK: Final[dict[str, int]] = {
     PATTERN_FIVE: 7,
     PATTERN_OPEN_FOUR: 6,
@@ -113,6 +113,171 @@ def is_immediate_win(
     return won
 
 
+def _classify_and_collect_stones(
+    board: np.ndarray,
+    row: int,
+    col: int,
+    dr: int,
+    dc: int,
+    player: int,
+    rule: str = RULE_VIETNAM,
+) -> tuple[str | None, list[tuple[int, int]]]:
+    """Phân loại mẫu hình mạnh nhất chứa ô (row, col) theo hướng (dr, dc)
+    và trả về danh sách toạ độ các quân cờ tạo nên mẫu hình đó.
+
+    Hỗ trợ nhận diện cả mẫu hình liền và mẫu hình có khe:
+    - Bốn có khe: XXX_X, XX_XX, X_XXX -> PATTERN_BLOCKED_FOUR
+    - Ba có khe: _XX_X_, _X_XX_ -> PATTERN_OPEN_THREE
+
+    Giả định: ô (row, col) đã chứa quân `player`.
+    """
+    size_r, size_c = board.shape
+    opponent = -player
+
+    # Trích xuất đoạn 11 ô từ k = -5 đến k = +5 quanh (row, col)
+    # k = 0 nằm tại chỉ số 5
+    cells: list[int] = []
+    coords: list[tuple[int, int] | None] = []
+
+    for k in range(-5, 6):
+        rk = row + k * dr
+        ck = col + k * dc
+        if 0 <= rk < size_r and 0 <= ck < size_c:
+            cells.append(int(board[rk, ck]))
+            coords.append((rk, ck))
+        else:
+            cells.append(-99)  # Biên bàn cờ
+            coords.append(None)
+
+    best_pattern: str | None = None
+    best_rank = -1
+    best_stones: list[tuple[int, int]] = []
+
+    # 1. Kiểm tra 5 quân liên tiếp (PATTERN_FIVE)
+    for start in range(1, 6):
+        window = cells[start : start + 5]
+        if all(c == player for c in window):
+            before = cells[start - 1] if start > 0 else -99
+            after = cells[start + 5] if start + 5 < 11 else -99
+            if rule == RULE_VIETNAM and before == opponent and after == opponent:
+                continue  # Bị chặn cả 2 đầu trong luật Việt Nam
+            stones = [coords[start + j] for j in range(5) if coords[start + j] is not None]
+            if _RANK[PATTERN_FIVE] > best_rank:
+                best_rank = _RANK[PATTERN_FIVE]
+                best_pattern = PATTERN_FIVE
+                best_stones = stones
+
+    # 2. Kiểm tra Bốn mở (PATTERN_OPEN_FOUR): cửa sổ 6 ô _XXXX_
+    for start in range(0, 6):
+        window = cells[start : start + 6]
+        if window[0] == EMPTY and window[5] == EMPTY:
+            middle = window[1:5]
+            if all(c == player for c in middle):
+                stones = [coords[start + 1 + j] for j in range(4) if coords[start + 1 + j] is not None]
+                if _RANK[PATTERN_OPEN_FOUR] > best_rank:
+                    best_rank = _RANK[PATTERN_OPEN_FOUR]
+                    best_pattern = PATTERN_OPEN_FOUR
+                    best_stones = stones
+
+    # 3. Kiểm tra Bốn chặn / Bốn có khe (PATTERN_BLOCKED_FOUR):
+    # Cửa sổ 5 ô có 4 quân player và 1 ô EMPTY (ví dụ: XXX_X, XX_XX, X_XXX, XXXX_, _XXXX)
+    for start in range(1, 6):
+        window = cells[start : start + 5]
+        if all(c in (player, EMPTY) for c in window):
+            count_p = sum(1 for c in window if c == player)
+            count_e = sum(1 for c in window if c == EMPTY)
+            if count_p == 4 and count_e == 1:
+                before = cells[start - 1] if start > 0 else -99
+                after = cells[start + 5] if start + 5 < 11 else -99
+                # Nếu luật VN và ô trống nằm ở rìa và bị chặn 2 đầu khi đặt vào
+                if rule == RULE_VIETNAM and before == opponent and after == opponent:
+                    continue
+                stones = [
+                    coords[start + j]
+                    for j in range(5)
+                    if coords[start + j] is not None and window[j] == player
+                ]
+                if _RANK[PATTERN_BLOCKED_FOUR] > best_rank:
+                    best_rank = _RANK[PATTERN_BLOCKED_FOUR]
+                    best_pattern = PATTERN_BLOCKED_FOUR
+                    best_stones = stones
+
+    # 4. Kiểm tra Ba mở (PATTERN_OPEN_THREE):
+    # Cửa sổ 6 ô hở 2 đầu _XXX__ / __XXX_ / _XX_X_ / _X_XX_
+    for start in range(0, 6):
+        window = cells[start : start + 6]
+        if window[0] == EMPTY and window[5] == EMPTY:
+            middle = window[1:5]
+            if all(c in (player, EMPTY) for c in middle):
+                count_p = sum(1 for c in middle if c == player)
+                count_e = sum(1 for c in middle if c == EMPTY)
+                if count_p == 3 and count_e == 1:
+                    stones = [
+                        coords[start + 1 + j]
+                        for j in range(4)
+                        if coords[start + 1 + j] is not None and middle[j] == player
+                    ]
+                    if _RANK[PATTERN_OPEN_THREE] > best_rank:
+                        best_rank = _RANK[PATTERN_OPEN_THREE]
+                        best_pattern = PATTERN_OPEN_THREE
+                        best_stones = stones
+
+    # 5. Kiểm tra Ba chặn (PATTERN_BLOCKED_THREE): cửa sổ 5 ô có 3 quân player và 2 ô EMPTY
+    for start in range(1, 6):
+        window = cells[start : start + 5]
+        if all(c in (player, EMPTY) for c in window):
+            count_p = sum(1 for c in window if c == player)
+            count_e = sum(1 for c in window if c == EMPTY)
+            if count_p == 3 and count_e == 2:
+                stones = [
+                    coords[start + j]
+                    for j in range(5)
+                    if coords[start + j] is not None and window[j] == player
+                ]
+                if _RANK[PATTERN_BLOCKED_THREE] > best_rank:
+                    best_rank = _RANK[PATTERN_BLOCKED_THREE]
+                    best_pattern = PATTERN_BLOCKED_THREE
+                    best_stones = stones
+
+    # 6. Kiểm tra Hai mở (PATTERN_OPEN_TWO): cửa sổ 6 ô hở 2 đầu có 2 quân player và 2 ô EMPTY
+    for start in range(0, 6):
+        window = cells[start : start + 6]
+        if window[0] == EMPTY and window[5] == EMPTY:
+            middle = window[1:5]
+            if all(c in (player, EMPTY) for c in middle):
+                count_p = sum(1 for c in middle if c == player)
+                count_e = sum(1 for c in middle if c == EMPTY)
+                if count_p == 2 and count_e == 2:
+                    stones = [
+                        coords[start + 1 + j]
+                        for j in range(4)
+                        if coords[start + 1 + j] is not None and middle[j] == player
+                    ]
+                    if _RANK[PATTERN_OPEN_TWO] > best_rank:
+                        best_rank = _RANK[PATTERN_OPEN_TWO]
+                        best_pattern = PATTERN_OPEN_TWO
+                        best_stones = stones
+
+    # 7. Kiểm tra Hai chặn (PATTERN_BLOCKED_TWO): cửa sổ 5 ô có 2 quân player và 3 ô EMPTY
+    for start in range(1, 6):
+        window = cells[start : start + 5]
+        if all(c in (player, EMPTY) for c in window):
+            count_p = sum(1 for c in window if c == player)
+            count_e = sum(1 for c in window if c == EMPTY)
+            if count_p == 2 and count_e == 3:
+                stones = [
+                    coords[start + j]
+                    for j in range(5)
+                    if coords[start + j] is not None and window[j] == player
+                ]
+                if _RANK[PATTERN_BLOCKED_TWO] > best_rank:
+                    best_rank = _RANK[PATTERN_BLOCKED_TWO]
+                    best_pattern = PATTERN_BLOCKED_TWO
+                    best_stones = stones
+
+    return best_pattern, best_stones
+
+
 def _classify_direction_line(
     board: np.ndarray,
     row: int,
@@ -126,98 +291,8 @@ def _classify_direction_line(
 
     Giả định: ô (row, col) đã được gán giá trị `player`.
     """
-    size_r, size_c = board.shape
-    opponent = -player
-
-    # 1. Đếm quân player liên tiếp theo chiều dương (+dr, +dc)
-    len_pos = 0
-    r_pos, c_pos = row + dr, col + dc
-    while 0 <= r_pos < size_r and 0 <= c_pos < size_c and board[r_pos, c_pos] == player:
-        len_pos += 1
-        r_pos += dr
-        c_pos += dc
-
-    if 0 <= r_pos < size_r and 0 <= c_pos < size_c:
-        end_pos_val = int(board[r_pos, c_pos])
-    else:
-        end_pos_val = -99  # Biên bàn
-
-    # 2. Đếm quân player liên tiếp theo chiều âm (-dr, -dc)
-    len_neg = 0
-    r_neg, c_neg = row - dr, col - dc
-    while 0 <= r_neg < size_r and 0 <= c_neg < size_c and board[r_neg, c_neg] == player:
-        len_neg += 1
-        r_neg -= dr
-        c_neg -= dc
-
-    if 0 <= r_neg < size_r and 0 <= c_neg < size_c:
-        end_neg_val = int(board[r_neg, c_neg])
-    else:
-        end_neg_val = -99  # Biên bàn
-
-    consecutive = 1 + len_pos + len_neg
-
-    # A. 5 quân trở lên
-    if consecutive >= WIN_STREAK:
-        if rule == RULE_FREESTYLE:
-            return PATTERN_FIVE
-        if not (end_pos_val == opponent and end_neg_val == opponent):
-            return PATTERN_FIVE
-        # Bị chặn cả 2 đầu trong luật Việt Nam
-        return None
-
-    # B. 4 quân liên tiếp
-    if consecutive == 4:
-        # Cả 2 đầu trống -> Bốn mở (không thể cản)
-        if end_pos_val == EMPTY and end_neg_val == EMPTY:
-            return PATTERN_OPEN_FOUR
-        # Một đầu trống
-        if end_pos_val == EMPTY:
-            next_r, next_c = r_pos + dr, c_pos + dc
-            next_val = int(board[next_r, next_c]) if (0 <= next_r < size_r and 0 <= next_c < size_c) else -99
-            if rule == RULE_VIETNAM and end_neg_val == opponent and next_val == opponent:
-                return None
-            return PATTERN_BLOCKED_FOUR
-        if end_neg_val == EMPTY:
-            next_r, next_c = r_neg - dr, c_neg - dc
-            next_val = int(board[next_r, next_c]) if (0 <= next_r < size_r and 0 <= next_c < size_c) else -99
-            if rule == RULE_VIETNAM and end_pos_val == opponent and next_val == opponent:
-                return None
-            return PATTERN_BLOCKED_FOUR
-        return None
-
-    # C. 3 quân liên tiếp
-    if consecutive == 3:
-        if end_pos_val == EMPTY and end_neg_val == EMPTY:
-            # Kiểm tra xem có khoảng trống để mở rộng thành bốn mở không
-            has_pos_space = (0 <= r_pos + dr < size_r and 0 <= c_pos + dc < size_c and board[r_pos + dr, c_pos + dc] == EMPTY)
-            has_neg_space = (0 <= r_neg - dr < size_r and 0 <= c_neg - dc < size_c and board[r_neg - dr, c_neg - dc] == EMPTY)
-            if has_pos_space or has_neg_space:
-                return PATTERN_OPEN_THREE
-            return PATTERN_BLOCKED_THREE
-        if end_pos_val == EMPTY:
-            has_pos_space = (0 <= r_pos + dr < size_r and 0 <= c_pos + dc < size_c and board[r_pos + dr, c_pos + dc] != opponent)
-            return PATTERN_BLOCKED_THREE if has_pos_space else None
-        if end_neg_val == EMPTY:
-            has_neg_space = (0 <= r_neg - dr < size_r and 0 <= c_neg - dc < size_c and board[r_neg - dr, c_neg - dc] != opponent)
-            return PATTERN_BLOCKED_THREE if has_neg_space else None
-        return None
-
-    # D. 2 quân liên tiếp
-    if consecutive == 2:
-        if end_pos_val == EMPTY and end_neg_val == EMPTY:
-            return PATTERN_OPEN_TWO
-        if end_pos_val == EMPTY or end_neg_val == EMPTY:
-            return PATTERN_BLOCKED_TWO
-        return None
-
-    # E. 1 quân đơn lẻ
-    if consecutive == 1:
-        if end_pos_val == EMPTY and end_neg_val == EMPTY:
-            return PATTERN_OPEN_ONE
-        return None
-
-    return None
+    pat, _ = _classify_and_collect_stones(board, row, col, dr, dc, player, rule)
+    return pat
 
 
 def detect_patterns_at(
@@ -268,9 +343,9 @@ def is_fork_at(
     """Kiểm tra nước đi tại (row, col) có tạo ra đòn kép (Fork) hay không.
 
     Đòn kép bao gồm:
-    - 3-3: Tạo ít nhất 2 Ba mở
-    - 4-3: Tạo ít nhất 1 Bốn (mở hoặc đóng) và 1 Ba mở
-    - 4-4: Tạo ít nhất 2 Bốn (mở hoặc đóng)
+    - 3-3: Tạo ít nhất 2 Ba mở (kể cả ba liền _XXX_ và ba có khe _XX_X_, _X_XX_)
+    - 4-3: Tạo ít nhất 1 Bốn (mở hoặc đóng/khe) và 1 Ba mở
+    - 4-4: Tạo ít nhất 2 Bốn (mở hoặc đóng/khe)
     """
     if board[row, col] != EMPTY:
         return False
@@ -379,25 +454,41 @@ def evaluate_board(
 ) -> float:
     """Hàm lượng giá toàn bộ trạng thái bàn cờ từ góc nhìn của `player`.
 
+    Mỗi hướng chỉ tính điểm đúng 1 lần cho mỗi chuỗi mẫu hình (thay vì tính n lần
+    cho từng quân trong chuỗi n quân).
+
+    - 1 ba mở: 50.000
+    - 1 bốn chặn: 100.000
+
     Dùng cho:
     - Minimax / Alpha-Beta leaf evaluation (Issue #6).
 
     Returns:
         Giá trị dương nếu player ưu thế, âm nếu opponent ưu thế.
     """
-    opponent = -player
     player_score = 0.0
     opponent_score = 0.0
+    size_r, size_c = board.shape
 
-    occupied_coords = np.argwhere(board != EMPTY)
-    for r, c in occupied_coords:
-        p = int(board[r, c])
-        counts = detect_patterns_at(board, int(r), int(c), p, rule)
-        s = sum(PATTERN_SCORES.get(pat, 0) * cnt for pat, cnt in counts.items())
-        if p == player:
-            player_score += s
-        else:
-            opponent_score += s
+    for dr, dc in DIRECTIONS:
+        visited = np.zeros((size_r, size_c), dtype=bool)
+        for r in range(size_r):
+            for c in range(size_c):
+                if board[r, c] == EMPTY or visited[r, c]:
+                    continue
+                p = int(board[r, c])
+                pat, stones = _classify_and_collect_stones(board, r, c, dr, dc, p, rule)
+                if pat is not None:
+                    score = float(PATTERN_SCORES.get(pat, 0))
+                    if p == player:
+                        player_score += score
+                    else:
+                        opponent_score += score
+
+                # Đánh dấu các quân cờ thuộc mẫu hình này đã được xét theo hướng (dr, dc)
+                for pr, pc in stones:
+                    visited[pr, pc] = True
+                visited[r, c] = True
 
     return player_score - opponent_score
 
@@ -412,7 +503,7 @@ def heuristic_rollout_action(
     Ưu tiên:
     1. Thắng ngay nếu có
     2. Chặn đối thủ thắng ngay
-    3. Chọn trong top 3 nước có điểm heuristic cao nhất (softmax hoặc ngẫu nhiên có trọng số)
+    3. Chọn trong top 3 nước có điểm heuristic cao nhất
     """
     if rng is None:
         rng = random.Random()
