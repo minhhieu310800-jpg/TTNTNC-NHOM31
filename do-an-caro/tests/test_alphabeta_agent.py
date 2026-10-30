@@ -1,3 +1,5 @@
+import random
+
 from agents.alphabeta_agent import AlphaBetaAgent
 from game.game import CaroGame
 
@@ -6,6 +8,14 @@ def play(game: CaroGame, coords: list[tuple[int, int]]) -> CaroGame:
     """Đánh lần lượt các toạ độ (X đi trước, xen kẽ với O)."""
     for coord in coords:
         game.step(coord)
+    return game
+
+
+def random_position(seed: int, n_moves: int) -> CaroGame:
+    rng = random.Random(seed)
+    game = CaroGame()
+    for _ in range(n_moves):
+        game.step(rng.choice(game.legal_actions()))
     return game
 
 
@@ -38,3 +48,20 @@ def test_state_unchanged_after_search():
     assert (game.board == board_before).all()
     assert game.current_player == player_before
     assert game.move_count == moves_before
+
+
+def test_pruning_same_move_fewer_nodes():
+    for seed in range(3):
+        game = random_position(seed, n_moves=8)
+        on = AlphaBetaAgent(depth=2, use_pruning=True)
+        off = AlphaBetaAgent(depth=2, use_pruning=False)
+        assert on.select_action(game) == off.select_action(game)
+        assert on.last_stats["score"] == off.last_stats["score"]
+        assert on.last_stats["nodes_visited"] <= off.last_stats["nodes_visited"]
+
+
+def test_pruning_has_cutoffs():
+    game = random_position(0, n_moves=8)
+    agent = AlphaBetaAgent(depth=2, use_pruning=True)
+    agent.select_action(game)
+    assert agent.last_stats["cutoffs"] > 0
