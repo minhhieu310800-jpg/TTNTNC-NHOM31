@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 from typing import TYPE_CHECKING
+import numpy as np
 
 from agents.base import Agent
 from game.patterns import (
@@ -23,6 +24,8 @@ WIN_SCORE = 10**9      # lớn hơn PATTERN_FIVE (100_000_000)
 DEFAULT_DEPTH = 2
 CANDIDATE_RADIUS = 2
 INF = float("inf")
+ORDERING_HEURISTIC = "heuristic"   # order_moves_by_heuristic (chính xác, chậm)
+ORDERING_CHEAP = "cheap"           # đếm quân lân cận (nhanh)
 
 
 class SearchTimeout(Exception):
@@ -40,6 +43,7 @@ class AlphaBetaAgent(Agent):
         radius: int = CANDIDATE_RADIUS,
         use_pruning: bool = True,
         use_move_ordering: bool = True,
+        ordering: str = ORDERING_CHEAP,
     ) -> None:
         super().__init__()
         self.depth = depth
@@ -48,16 +52,37 @@ class AlphaBetaAgent(Agent):
         self.use_move_ordering = use_move_ordering
         self._nodes = 0
         self._cutoffs = 0
+        self.ordering = ordering
         self._deadline: float | None = None
 
+    def _cheap_order(self, state: CaroGame) -> list[int]:
+        """Sắp ứng viên theo số quân lân cận (bán kính 1) và độ gần trung tâm."""
+        board = state.board
+        size = state.size
+        occupied = (board != 0).astype(np.int32)
+        padded = np.pad(occupied, 1)
+        # Tổng quân trong ô 3x3 quanh mỗi ô.
+        neighbors = sum(
+            padded[1 + dr : 1 + dr + size, 1 + dc : 1 + dc + size]
+            for dr in (-1, 0, 1)
+            for dc in (-1, 0, 1)
+        )
+        center = size // 2
+        scored = []
+        for action in get_candidate_moves(board, self.radius):
+            r, c = divmod(action, size)
+            score = 10 * int(neighbors[r, c]) - (abs(r - center) + abs(c - center))
+            scored.append((score, action))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return [action for _, action in scored]
+
     def _get_moves(self, state: CaroGame) -> list[int]:
-        """Nước ứng viên, sắp theo heuristic (cao -> thấp) nếu bật move ordering."""
-        if self.use_move_ordering:
-            scored = order_moves_by_heuristic(
-                state, state.current_player, radius=self.radius
-            )
-            return [action for action, _ in scored]
-        return get_candidate_moves(state.board, self.radius)
+        if not self.use_move_ordering:
+            return get_candidate_moves(state.board, self.radius)
+        if self.ordering == ORDERING_CHEAP:
+            return self._cheap_order(state)
+        scored = order_moves_by_heuristic(state, state.current_player, radius=self.radius)
+        return [action for action, _ in scored]
 
     def select_action(self, state: CaroGame, budget: float | None = None) -> int:
         """budget=None: tìm đúng độ sâu self.depth; budget=số: iterative deepening."""
