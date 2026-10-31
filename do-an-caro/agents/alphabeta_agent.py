@@ -126,7 +126,8 @@ class AlphaBetaAgent(Agent):
             return evaluate_board(state.board, state.current_player, state.rule)
 
         best = -INF
-        for action in self._get_moves(state):
+        moves = self._get_moves(state) if depth >= 2 else get_candidate_moves(state.board, self.radius)
+        for action in moves:
             state.step(action)
             try:
                 value = -self._negamax(state, depth - 1, -beta, -alpha, ply + 1)
