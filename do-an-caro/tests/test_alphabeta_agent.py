@@ -57,7 +57,7 @@ def test_pruning_same_move_fewer_nodes():
         off = AlphaBetaAgent(depth=2, use_pruning=False)
         assert on.select_action(game) == off.select_action(game)
         assert on.last_stats["score"] == off.last_stats["score"]
-        assert on.last_stats["nodes_visited"] <= off.last_stats["nodes_visited"]
+        assert on.last_stats["nodes"] <= off.last_stats["nodes"]
 
 
 def test_pruning_has_cutoffs():

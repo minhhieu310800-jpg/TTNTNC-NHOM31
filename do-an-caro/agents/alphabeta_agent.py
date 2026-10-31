@@ -59,7 +59,7 @@ class AlphaBetaAgent(Agent):
             alpha = max(alpha, value)  # ở gốc chỉ cập nhật alpha, không break
 
         self.last_stats = {
-            "nodes_visited": self._nodes,
+            "nodes": self._nodes,
             "depth_reached": self.depth,
             "cutoffs": self._cutoffs,
             "tt_hits": 0,
