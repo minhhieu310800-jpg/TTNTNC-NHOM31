@@ -75,3 +75,25 @@ def test_move_ordering_same_score():
         plain.select_action(game)
         # Chỉ so score: nhiều nước bằng điểm thì nước được chọn có thể khác.
         assert ordered.last_stats["score"] == plain.last_stats["score"]
+
+def test_budget_returns_legal_move_in_time():
+    game = random_position(1, n_moves=8)
+    board_before = game.board.copy()
+    agent = AlphaBetaAgent()
+    action = agent.select_action(game, budget=0.3)
+    assert action in game.legal_actions()
+    assert agent.last_stats["time_used"] < 1.5
+    assert (game.board == board_before).all()
+
+
+def test_tiny_budget_still_returns_legal_move():
+    game = random_position(2, n_moves=8)
+    action = AlphaBetaAgent().select_action(game, budget=0.001)
+    assert action in game.legal_actions()
+
+
+def test_no_budget_uses_fixed_depth():
+    game = random_position(3, n_moves=8)
+    agent = AlphaBetaAgent(depth=2)
+    agent.select_action(game)
+    assert agent.last_stats["depth_reached"] == 2

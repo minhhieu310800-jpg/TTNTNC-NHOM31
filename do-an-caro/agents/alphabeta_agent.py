@@ -1,4 +1,4 @@
-"""Cấp 3: Minimax (negamax) + cắt tỉa Alpha-Beta + sắp xếp nước, độ sâu cố định.
+"""Cấp 3: Minimax (negamax) + Alpha-Beta + sắp xếp nước + iterative deepening.
 
 Tham khảo: Russell & Norvig, AIMA 4th ed., chương 5 (adversarial search).
 Hàm lượng giá, sinh nước ứng viên và sắp nước dùng lại từ game/patterns.py.
@@ -25,6 +25,10 @@ CANDIDATE_RADIUS = 2
 INF = float("inf")
 
 
+class SearchTimeout(Exception):
+    """Ném ra khi hết thời gian suy nghĩ giữa chừng một độ sâu."""
+
+
 class AlphaBetaAgent(Agent):
     """Tác tử Minimax/Alpha-Beta cấp 3."""
 
@@ -44,6 +48,7 @@ class AlphaBetaAgent(Agent):
         self.use_move_ordering = use_move_ordering
         self._nodes = 0
         self._cutoffs = 0
+        self._deadline: float | None = None
 
     def _get_moves(self, state: CaroGame) -> list[int]:
         """Nước ứng viên, sắp theo heuristic (cao -> thấp) nếu bật move ordering."""
@@ -55,26 +60,32 @@ class AlphaBetaAgent(Agent):
         return get_candidate_moves(state.board, self.radius)
 
     def select_action(self, state: CaroGame, budget: float | None = None) -> int:
-        """Chọn nước có giá trị negamax lớn nhất ở độ sâu self.depth."""
+        """budget=None: tìm đúng độ sâu self.depth; budget=số: iterative deepening."""
         start = time.perf_counter()
         self._nodes = 0
         self._cutoffs = 0
+        self._deadline = None
 
-        best_action = -1
-        best_value = -INF
-        alpha = -INF
-        for action in self._get_moves(state):
-            state.step(action)
-            value = -self._negamax(state, self.depth - 1, -INF, -alpha, ply=1)
-            state.undo()
-            if value > best_value:
-                best_value = value
-                best_action = action
-            alpha = max(alpha, value)
+        if budget is None:
+            best_action, best_value = self._search_root(state, self.depth)
+            depth_reached = self.depth
+        else:
+            # Độ sâu 1 chạy không deadline để chắc chắn luôn có nước trả về.
+            best_action, best_value = self._search_root(state, 1)
+            depth_reached = 1
+            self._deadline = start + budget
+            max_depth = len(state.legal_actions())
+            for d in range(2, max_depth + 1):
+                try:
+                    best_action, best_value = self._search_root(state, d)
+                    depth_reached = d
+                except SearchTimeout:
+                    break
+            self._deadline = None
 
         self.last_stats = {
             "nodes": self._nodes,
-            "depth_reached": self.depth,
+            "depth_reached": depth_reached,
             "cutoffs": self._cutoffs,
             "tt_hits": 0,
             "score": best_value,
@@ -82,9 +93,29 @@ class AlphaBetaAgent(Agent):
         }
         return best_action
 
+    def _search_root(self, state: CaroGame, depth: int) -> tuple[int, float]:
+        """Tìm ở gốc với độ sâu `depth`, trả (nước tốt nhất, giá trị)."""
+        best_action = -1
+        best_value = -INF
+        alpha = -INF
+        for action in self._get_moves(state):
+            state.step(action)
+            try:
+                value = -self._negamax(state, depth - 1, -INF, -alpha, ply=1)
+            finally:
+                state.undo()
+            if value > best_value:
+                best_value = value
+                best_action = action
+            alpha = max(alpha, value)
+        return best_action, best_value
+
     def _negamax(self, state: CaroGame, depth: int, alpha: float, beta: float, ply: int) -> float:
         """Giá trị của thế cờ từ góc nhìn của người SẮP đi."""
         self._nodes += 1
+
+        if self._deadline is not None and time.perf_counter() >= self._deadline:
+            raise SearchTimeout
 
         if state.is_terminal():
             if state.result() == 0:
@@ -97,8 +128,10 @@ class AlphaBetaAgent(Agent):
         best = -INF
         for action in self._get_moves(state):
             state.step(action)
-            value = -self._negamax(state, depth - 1, -beta, -alpha, ply + 1)
-            state.undo()
+            try:
+                value = -self._negamax(state, depth - 1, -beta, -alpha, ply + 1)
+            finally:
+                state.undo()
             best = max(best, value)
             alpha = max(alpha, value)
             if self.use_pruning and alpha >= beta:
