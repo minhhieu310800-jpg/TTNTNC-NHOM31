@@ -53,8 +53,8 @@ def test_state_unchanged_after_search():
 def test_pruning_same_move_fewer_nodes():
     for seed in range(3):
         game = random_position(seed, n_moves=8)
-        on = AlphaBetaAgent(depth=2, use_pruning=True)
-        off = AlphaBetaAgent(depth=2, use_pruning=False)
+        on = AlphaBetaAgent(depth=2, use_pruning=True, use_move_ordering=False)
+        off = AlphaBetaAgent(depth=2, use_pruning=False, use_move_ordering=False)
         assert on.select_action(game) == off.select_action(game)
         assert on.last_stats["score"] == off.last_stats["score"]
         assert on.last_stats["nodes"] <= off.last_stats["nodes"]
@@ -65,3 +65,13 @@ def test_pruning_has_cutoffs():
     agent = AlphaBetaAgent(depth=2, use_pruning=True)
     agent.select_action(game)
     assert agent.last_stats["cutoffs"] > 0
+
+def test_move_ordering_same_score():
+    for seed in range(2):
+        game = random_position(seed, n_moves=8)
+        ordered = AlphaBetaAgent(depth=2, use_move_ordering=True)
+        plain = AlphaBetaAgent(depth=2, use_move_ordering=False)
+        ordered.select_action(game)
+        plain.select_action(game)
+        # Chỉ so score: nhiều nước bằng điểm thì nước được chọn có thể khác.
+        assert ordered.last_stats["score"] == plain.last_stats["score"]
