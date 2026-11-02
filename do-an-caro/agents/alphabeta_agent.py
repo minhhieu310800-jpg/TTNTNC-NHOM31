@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import time
 from typing import TYPE_CHECKING
+
 import numpy as np
 
 from agents.base import Agent
+from agents.fast_eval import fast_evaluate
 from game.patterns import (
     evaluate_board,
     get_candidate_moves,
@@ -44,6 +46,7 @@ class AlphaBetaAgent(Agent):
         use_pruning: bool = True,
         use_move_ordering: bool = True,
         ordering: str = ORDERING_CHEAP,
+        fast_eval: bool = True,
     ) -> None:
         super().__init__()
         self.depth = depth
@@ -53,6 +56,7 @@ class AlphaBetaAgent(Agent):
         self._nodes = 0
         self._cutoffs = 0
         self.ordering = ordering
+        self.fast_eval = fast_eval
         self._deadline: float | None = None
 
     def _cheap_order(self, state: CaroGame) -> list[int]:
@@ -148,6 +152,8 @@ class AlphaBetaAgent(Agent):
             return -(WIN_SCORE - ply)
 
         if depth == 0:
+            if self.fast_eval:
+                return fast_evaluate(state.board, state.current_player)
             return evaluate_board(state.board, state.current_player, state.rule)
 
         best = -INF
