@@ -115,3 +115,13 @@ def test_default_depth_is_three():
     agent = AlphaBetaAgent()
     agent.select_action(game)
     assert agent.last_stats["depth_reached"] == 3
+
+def test_tt_same_score_and_has_hits():
+    for seed in range(3):
+        game = random_position(seed, n_moves=8)
+        on = AlphaBetaAgent(depth=3, use_tt=True)
+        off = AlphaBetaAgent(depth=3, use_tt=False)
+        on.select_action(game)
+        off.select_action(game)
+        assert on.last_stats["score"] == off.last_stats["score"]
+        assert on.last_stats["nodes"] <= off.last_stats["nodes"]

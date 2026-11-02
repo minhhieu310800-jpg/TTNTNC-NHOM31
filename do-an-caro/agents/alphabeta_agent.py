@@ -26,6 +26,8 @@ WIN_SCORE = 10**9      # lớn hơn PATTERN_FIVE (100_000_000)
 DEFAULT_DEPTH = 3
 CANDIDATE_RADIUS = 2
 INF = float("inf")
+TT_EXACT, TT_LOWER, TT_UPPER = 0, 1, 2
+ZOBRIST_SEED = 20261120
 ORDERING_HEURISTIC = "heuristic"   # order_moves_by_heuristic (chính xác, chậm)
 ORDERING_CHEAP = "cheap"           # đếm quân lân cận (nhanh)
 
@@ -47,6 +49,7 @@ class AlphaBetaAgent(Agent):
         use_move_ordering: bool = True,
         ordering: str = ORDERING_CHEAP,
         fast_eval: bool = True,
+        use_tt: bool = True,
     ) -> None:
         super().__init__()
         self.depth = depth
@@ -58,6 +61,21 @@ class AlphaBetaAgent(Agent):
         self.ordering = ordering
         self.fast_eval = fast_eval
         self._deadline: float | None = None
+        self.use_tt = use_tt
+        self._tt: dict[int, tuple[int, int, float]] = {}
+        self._tt_hits = 0
+        rng = np.random.default_rng(ZOBRIST_SEED)
+        self._zobrist = rng.integers(0, 2**63, size=(2, 121), dtype=np.int64)
+        self._side_key = int(rng.integers(0, 2**63, dtype=np.int64))
+
+    def _hash(self, state: CaroGame) -> int:
+        flat = state.board.ravel()
+        h = 0
+        for idx in np.flatnonzero(flat):
+            h ^= int(self._zobrist[0 if flat[idx] == 1 else 1, idx])
+        if state.current_player == 1:
+            h ^= self._side_key
+        return h
 
     def _cheap_order(self, state: CaroGame) -> list[int]:
         """Sắp ứng viên theo số quân lân cận (bán kính 1) và độ gần trung tâm."""
@@ -94,6 +112,8 @@ class AlphaBetaAgent(Agent):
         self._nodes = 0
         self._cutoffs = 0
         self._deadline = None
+        self._tt_hits = 0
+        self._tt.clear()
 
         if budget is None:
             best_action, best_value = self._search_root(state, self.depth)
@@ -116,7 +136,7 @@ class AlphaBetaAgent(Agent):
             "nodes": self._nodes,
             "depth_reached": depth_reached,
             "cutoffs": self._cutoffs,
-            "tt_hits": 0,
+            "tt_hits": self._tt_hits,
             "score": best_value,
             "time_used": time.perf_counter() - start,
         }
@@ -156,6 +176,24 @@ class AlphaBetaAgent(Agent):
                 return fast_evaluate(state.board, state.current_player)
             return evaluate_board(state.board, state.current_player, state.rule)
 
+        alpha_orig = alpha
+        key = 0
+        if self.use_tt:
+            key = self._hash(state)
+            entry = self._tt.get(key)
+            if entry is not None and entry[0] >= depth:
+                _, flag, value = entry
+                if flag == TT_EXACT:
+                    self._tt_hits += 1
+                    return value
+                if flag == TT_LOWER:
+                    alpha = max(alpha, value)
+                elif flag == TT_UPPER:
+                    beta = min(beta, value)
+                if alpha >= beta:
+                    self._tt_hits += 1
+                    return value
+
         best = -INF
         moves = self._get_moves(state) if depth >= 2 else get_candidate_moves(state.board, self.radius)
         for action in moves:
@@ -169,4 +207,13 @@ class AlphaBetaAgent(Agent):
             if self.use_pruning and alpha >= beta:
                 self._cutoffs += 1
                 break
+
+        if self.use_tt:
+            if best <= alpha_orig:
+                flag = TT_UPPER
+            elif best >= beta:
+                flag = TT_LOWER
+            else:
+                flag = TT_EXACT
+            self._tt[key] = (depth, flag, best)
         return best
