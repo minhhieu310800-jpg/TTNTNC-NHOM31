@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from game.game import CaroGame
 
 WIN_SCORE = 10**9      # lớn hơn PATTERN_FIVE (100_000_000)
-DEFAULT_DEPTH = 2
+DEFAULT_DEPTH = 3
 CANDIDATE_RADIUS = 2
 INF = float("inf")
 ORDERING_HEURISTIC = "heuristic"   # order_moves_by_heuristic (chính xác, chậm)

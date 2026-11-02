@@ -66,6 +66,7 @@ def test_pruning_has_cutoffs():
     agent.select_action(game)
     assert agent.last_stats["cutoffs"] > 0
 
+
 def test_move_ordering_same_score():
     for seed in range(2):
         game = random_position(seed, n_moves=8)
@@ -75,6 +76,7 @@ def test_move_ordering_same_score():
         plain.select_action(game)
         # Chỉ so score: nhiều nước bằng điểm thì nước được chọn có thể khác.
         assert ordered.last_stats["score"] == plain.last_stats["score"]
+
 
 def test_budget_returns_legal_move_in_time():
     game = random_position(1, n_moves=8)
@@ -97,3 +99,19 @@ def test_no_budget_uses_fixed_depth():
     agent = AlphaBetaAgent(depth=2)
     agent.select_action(game)
     assert agent.last_stats["depth_reached"] == 2
+
+
+def test_cheap_ordering_same_score():
+    game = random_position(1, n_moves=8)
+    cheap = AlphaBetaAgent(depth=2, ordering="cheap")
+    heur = AlphaBetaAgent(depth=2, ordering="heuristic")
+    cheap.select_action(game)
+    heur.select_action(game)
+    assert cheap.last_stats["score"] == heur.last_stats["score"]
+
+
+def test_default_depth_is_three():
+    game = random_position(3, n_moves=8)
+    agent = AlphaBetaAgent()
+    agent.select_action(game)
+    assert agent.last_stats["depth_reached"] == 3
