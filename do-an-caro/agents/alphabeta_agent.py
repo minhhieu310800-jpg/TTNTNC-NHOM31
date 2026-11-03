@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from game.game import CaroGame
 
 WIN_SCORE = 10**9      # lớn hơn PATTERN_FIVE (100_000_000)
+MATE_SCORE_THRESHOLD = WIN_SCORE - 1_000
 DEFAULT_DEPTH = 3
 CANDIDATE_RADIUS = 2
 INF = float("inf")
@@ -48,7 +49,7 @@ class AlphaBetaAgent(Agent):
         use_pruning: bool = True,
         use_move_ordering: bool = True,
         ordering: str = ORDERING_CHEAP,
-        fast_eval: bool = True,
+        fast_eval: bool = False,
         use_tt: bool = True,
     ) -> None:
         super().__init__()
@@ -62,7 +63,7 @@ class AlphaBetaAgent(Agent):
         self.fast_eval = fast_eval
         self._deadline: float | None = None
         self.use_tt = use_tt
-        self._tt: dict[int, tuple[int, int, float]] = {}
+        self._tt: dict[int, tuple[int, int, float, int | None]] = {}
         self._tt_hits = 0
         rng = np.random.default_rng(ZOBRIST_SEED)
         self._zobrist = rng.integers(0, 2**63, size=(2, 121), dtype=np.int64)
@@ -76,6 +77,29 @@ class AlphaBetaAgent(Agent):
         if state.current_player == 1:
             h ^= self._side_key
         return h
+
+    @staticmethod
+    def _score_to_tt(score: float, ply: int) -> float:
+        if score >= MATE_SCORE_THRESHOLD:
+            return score + ply
+        if score <= -MATE_SCORE_THRESHOLD:
+            return score - ply
+        return score
+
+    @staticmethod
+    def _score_from_tt(score: float, ply: int) -> float:
+        if score >= MATE_SCORE_THRESHOLD:
+            return score - ply
+        if score <= -MATE_SCORE_THRESHOLD:
+            return score + ply
+        return score
+
+    @staticmethod
+    def _prioritize_move(moves: list[int], action: int | None) -> list[int]:
+        if action is not None and action in moves:
+            moves.remove(action)
+            moves.insert(0, action)
+        return moves
 
     def _cheap_order(self, state: CaroGame) -> list[int]:
         """Sắp ứng viên theo số quân lân cận (bán kính 1) và độ gần trung tâm."""
@@ -147,7 +171,11 @@ class AlphaBetaAgent(Agent):
         best_action = -1
         best_value = -INF
         alpha = -INF
-        for action in self._get_moves(state):
+        key = self._hash(state) if self.use_tt else 0
+        entry = self._tt.get(key) if self.use_tt else None
+        tt_move = entry[3] if entry is not None else None
+        moves = self._prioritize_move(self._get_moves(state), tt_move)
+        for action in moves:
             state.step(action)
             try:
                 value = -self._negamax(state, depth - 1, -INF, -alpha, ply=1)
@@ -157,6 +185,13 @@ class AlphaBetaAgent(Agent):
                 best_value = value
                 best_action = action
             alpha = max(alpha, value)
+        if self.use_tt:
+            self._tt[key] = (
+                depth,
+                TT_EXACT,
+                self._score_to_tt(best_value, 0),
+                best_action,
+            )
         return best_action, best_value
 
     def _negamax(self, state: CaroGame, depth: int, alpha: float, beta: float, ply: int) -> float:
@@ -177,12 +212,17 @@ class AlphaBetaAgent(Agent):
             return evaluate_board(state.board, state.current_player, state.rule)
 
         alpha_orig = alpha
+        beta_orig = beta
         key = 0
+        tt_move = None
         if self.use_tt:
             key = self._hash(state)
             entry = self._tt.get(key)
+            if entry is not None:
+                tt_move = entry[3]
             if entry is not None and entry[0] >= depth:
-                _, flag, value = entry
+                _, flag, stored_value, _ = entry
+                value = self._score_from_tt(stored_value, ply)
                 if flag == TT_EXACT:
                     self._tt_hits += 1
                     return value
@@ -196,13 +236,17 @@ class AlphaBetaAgent(Agent):
 
         best = -INF
         moves = self._get_moves(state) if depth >= 2 else get_candidate_moves(state.board, self.radius)
+        moves = self._prioritize_move(moves, tt_move)
+        best_action: int | None = None
         for action in moves:
             state.step(action)
             try:
                 value = -self._negamax(state, depth - 1, -beta, -alpha, ply + 1)
             finally:
                 state.undo()
-            best = max(best, value)
+            if value > best:
+                best = value
+                best_action = action
             alpha = max(alpha, value)
             if self.use_pruning and alpha >= beta:
                 self._cutoffs += 1
@@ -211,9 +255,14 @@ class AlphaBetaAgent(Agent):
         if self.use_tt:
             if best <= alpha_orig:
                 flag = TT_UPPER
-            elif best >= beta:
+            elif best >= beta_orig:
                 flag = TT_LOWER
             else:
                 flag = TT_EXACT
-            self._tt[key] = (depth, flag, best)
+            self._tt[key] = (
+                depth,
+                flag,
+                self._score_to_tt(best, ply),
+                best_action,
+            )
         return best
