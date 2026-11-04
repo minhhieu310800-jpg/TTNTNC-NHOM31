@@ -28,7 +28,7 @@ def test_takes_immediate_win():
     game = play(CaroGame(), [
         (5, 3), (0, 0), (5, 4), (0, 2), (5, 5), (0, 4), (5, 6), (10, 10),
     ])
-    action = AlphaBetaAgent(fast_eval=True).select_action(game)
+    action = AlphaBetaAgent(depth=2).select_action(game)
     assert game.action_to_coord(action) in [(5, 2), (5, 7)]
 
 
@@ -37,7 +37,7 @@ def test_blocks_opponent_win():
     game = play(CaroGame(), [
         (5, 2), (5, 3), (0, 2), (5, 4), (0, 4), (5, 5), (10, 10), (5, 6),
     ])
-    action = AlphaBetaAgent(fast_eval=True).select_action(game)
+    action = AlphaBetaAgent(depth=2).select_action(game)
     assert game.action_to_coord(action) == (5, 7)
 
 
@@ -154,3 +154,22 @@ def test_mate_scores_are_normalized_for_transposition_table():
 
 def test_pattern_evaluator_is_default():
     assert AlphaBetaAgent().fast_eval is False
+
+def test_tt_same_score_many_positions():
+    for seed in range(3):
+        game = random_position(seed, n_moves=8)
+        on = AlphaBetaAgent(depth=3, use_tt=True, fast_eval=True)
+        off = AlphaBetaAgent(depth=3, use_tt=False, fast_eval=True)
+        on.select_action(game)
+        off.select_action(game)
+        assert on.last_stats["score"] == off.last_stats["score"]
+
+
+def test_stops_early_when_win_found():
+    game = play(CaroGame(), [
+        (5, 3), (0, 0), (5, 4), (0, 2), (5, 5), (0, 4), (5, 6), (10, 10),
+    ])
+    agent = AlphaBetaAgent(fast_eval=True)
+    agent.select_action(game, budget=1.0)
+    assert agent.last_stats["depth_reached"] <= 2
+    assert agent.last_stats["time_used"] < 0.5

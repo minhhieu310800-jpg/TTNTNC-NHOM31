@@ -143,18 +143,20 @@ class AlphaBetaAgent(Agent):
             best_action, best_value = self._search_root(state, self.depth)
             depth_reached = self.depth
         else:
-            # Độ sâu 1 chạy không deadline để chắc chắn luôn có nước trả về.
             best_action, best_value = self._search_root(state, 1)
             depth_reached = 1
-            self._deadline = start + budget
-            max_depth = len(state.legal_actions())
-            for d in range(2, max_depth + 1):
-                try:
-                    best_action, best_value = self._search_root(state, d)
-                    depth_reached = d
-                except SearchTimeout:
-                    break
-            self._deadline = None
+            if best_value < MATE_SCORE_THRESHOLD:
+                self._deadline = start + budget
+                max_depth = len(state.legal_actions())
+                for d in range(2, max_depth + 1):
+                    try:
+                        best_action, best_value = self._search_root(state, d)
+                        depth_reached = d
+                    except SearchTimeout:
+                        break
+                    if best_value >= MATE_SCORE_THRESHOLD:
+                        break
+                self._deadline = None
 
         self.last_stats = {
             "nodes": self._nodes,
@@ -211,8 +213,7 @@ class AlphaBetaAgent(Agent):
                 return fast_evaluate(state.board, state.current_player)
             return evaluate_board(state.board, state.current_player, state.rule)
 
-        alpha_orig = alpha
-        beta_orig = beta
+
         key = 0
         tt_move = None
         if self.use_tt:
@@ -234,6 +235,7 @@ class AlphaBetaAgent(Agent):
                     self._tt_hits += 1
                     return value
 
+        alpha_orig = alpha
         best = -INF
         moves = self._get_moves(state) if depth >= 2 else get_candidate_moves(state.board, self.radius)
         moves = self._prioritize_move(moves, tt_move)
@@ -255,7 +257,7 @@ class AlphaBetaAgent(Agent):
         if self.use_tt:
             if best <= alpha_orig:
                 flag = TT_UPPER
-            elif best >= beta_orig:
+            elif best >= beta:
                 flag = TT_LOWER
             else:
                 flag = TT_EXACT
