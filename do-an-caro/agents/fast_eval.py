@@ -11,13 +11,17 @@ from __future__ import annotations
 import numpy as np
 from numba import njit
 
+# Điểm theo số quân trong một cửa sổ 5 ô không bị đối phương chiếm.
+# Chỉ số = số quân (0..5). Cùng cỡ với PATTERN_SCORES trong game/patterns.py.
 WINDOW_SCORES = np.array([0, 0, 50, 1_000, 100_000, 100_000_000], dtype=np.float64)
+WIN_STREAK = 5
 
 
 @njit(cache=True)
 def _eval_numba(board: np.ndarray, player: int, scores: np.ndarray) -> float:
     n = board.shape[0]
     total = 0.0
+    # 4 hướng: ngang, dọc, chéo xuống, chéo lên
     dirs = ((0, 1), (1, 0), (1, 1), (1, -1))
     for d in range(4):
         dr, dc = dirs[d]
