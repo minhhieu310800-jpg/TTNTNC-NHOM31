@@ -1,0 +1,23 @@
+# Chế độ A – ngân sách cố định (proposal mục 6): 0,5 s/nước, 1 luồng CPU mỗi tiến trình.
+# Độ nhạy: sao chép file, đổi `name` và `budget` thành 0.1 hoặc 1.0.
+# Giải đấu chính thức chạy ở issue #15, sau khi khóa engine (engine-v1.0).
+# python -m arena.tournament configs/arena/mode_a.yaml
+name: mode_a_0.5s
+mode: A
+budget: 0.5
+size: 11
+rule: vietnam
+openings_file: configs/openings.json
+num_openings: 100        # 100 khai cuộc x 2 lượt đổi bên = 200 ván/cặp
+seeds: [0, 1, 2]         # Random, MCTS (và RL sau này) chạy thêm 3 seed
+workers: 4               # không vượt quá số nhân CPU vật lý để đo thời gian chính xác
+
+agents:
+  random:
+    type: random
+  heuristic:
+    type: heuristic
+  alphabeta:
+    type: alphabeta      # mặc định hiện tại; #33 sẽ đổi sang hàm lượng giá nhanh
+  mcts:
+    type: mcts           # MCTS thuần: rollout ngẫu nhiên tới hết ván

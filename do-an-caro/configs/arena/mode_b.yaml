@@ -1,0 +1,24 @@
+# Chế độ B – cấu hình mặc định minh bạch (proposal mục 6):
+# Alpha-Beta độ sâu 3; MCTS 1.600 mô phỏng; (sau này) PUCT 400 mô phỏng, policy-only 1 lần suy luận.
+# Lưu ý: cần #33 (hàm lượng giá nhanh) trước khi chạy, nếu không Alpha-Beta độ sâu 3 mất ~10 s/nước.
+# python -m arena.tournament configs/arena/mode_b.yaml
+name: mode_b_default
+mode: B                  # budget=None: mỗi tác tử dùng cấu hình chuẩn của nó
+size: 11
+rule: vietnam
+openings_file: configs/openings.json
+num_openings: 100
+seeds: [0, 1, 2]
+workers: 4
+
+agents:
+  random:
+    type: random
+  heuristic:
+    type: heuristic
+  alphabeta:
+    type: alphabeta
+    params: {depth: 3}
+  mcts:
+    type: mcts
+    params: {simulations: 1600}
