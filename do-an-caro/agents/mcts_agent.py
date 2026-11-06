@@ -2,7 +2,8 @@
 
 Tham khảo: Kocsis & Szepesvari (2006); Russell & Norvig, AIMA 4th ed., ch. 5.
 Rollout heuristic nhẹ: thắng ngay > chặn ngay > ngẫu nhiên trong vùng lân cận
-nước vừa đi. Rollout bị cắt sau MAX_ROLLOUT_MOVES nước và chấm bằng fast_evaluate.
+nước vừa đi. Mặc định là MCTS thuần: rollout ngẫu nhiên tới hết ván, không dùng hàm lượng giá.
+Biến thể (cho ablation): rollout heuristic (thắng/chặn ngay).
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ import time
 from typing import TYPE_CHECKING
 
 from agents.base import Agent
-from agents.fast_eval import fast_evaluate
 from game.patterns import get_candidate_moves, is_immediate_win
 
 if TYPE_CHECKING:
@@ -23,8 +23,6 @@ UCT_C = math.sqrt(2)
 DEFAULT_SIMULATIONS = 1600
 CANDIDATE_RADIUS = 2
 LOCAL_RADIUS = 2            # vùng lân cận nước vừa đi trong rollout
-MAX_ROLLOUT_MOVES = 24      # cắt rollout dài
-EVAL_MARGIN = 500.0         # |điểm| nhỏ hơn mức này coi là hòa khi cắt rollout
 ROLLOUT_RANDOM = "random"
 ROLLOUT_HEURISTIC = "heuristic"
 
@@ -52,17 +50,14 @@ class Node:
 
 
 class MCTSAgent(Agent):
-    """Tác tử MCTS-UCT cấp 4."""
-
-    name = "mcts"
-
+    
     def __init__(
         self,
         simulations: int = DEFAULT_SIMULATIONS,
-        rollout: str = ROLLOUT_HEURISTIC,
+        rollout: str = ROLLOUT_RANDOM,
         c: float = UCT_C,
         radius: int = CANDIDATE_RADIUS,
-        max_rollout_moves: int = MAX_ROLLOUT_MOVES,
+        use_forced_move: bool = False,
         seed: int | None = None,
     ) -> None:
         super().__init__()
@@ -70,7 +65,7 @@ class MCTSAgent(Agent):
         self.rollout = rollout
         self.c = c
         self.radius = radius
-        self.max_rollout_moves = max_rollout_moves
+        self.use_forced_move = use_forced_move
         self.rng = random.Random(seed)
 
     def _forced_move(self, game: CaroGame) -> int | None:
@@ -88,16 +83,16 @@ class MCTSAgent(Agent):
         """budget=None: self.simulations mô phỏng; budget=số: chạy theo giây."""
         start = time.perf_counter()
         game = state.clone()  # không bao giờ sửa state truyền vào
-
-        forced = self._forced_move(game)
-        if forced is not None:
-            self.last_stats = {
-                "sims": 0,
-                "best_visits": 0,
-                "win_rate": 1.0,
-                "time_used": time.perf_counter() - start,
-            }
-            return forced
+        if self.use_forced_move:
+            forced = self._forced_move(game)
+            if forced is not None:
+                self.last_stats = {
+                    "sims": 0,
+                    "best_visits": 0,
+                    "win_rate": None,
+                    "time_used": time.perf_counter() - start,
+                }
+                return forced
 
         deadline = None if budget is None else start + budget
         root = Node(None, None, -game.current_player, self._moves(game))
@@ -172,31 +167,19 @@ class MCTSAgent(Agent):
                 node.children.append(child)
                 node = child
             # 3. Simulation (cùng `game`, undo ở finally)
-            rolled = 0
-            while not game.is_terminal() and rolled < self.max_rollout_moves:
+            while not game.is_terminal():
                 game.step(self._rollout_action(game))
                 steps += 1
-                rolled += 1
-            result = self._outcome(game)
+            result = game.result()
         finally:
             for _ in range(steps):
                 game.undo()
         # 4. Backpropagation: thưởng theo góc nhìn người vừa đi ở mỗi nút
         while node is not None:
             node.visits += 1
-            if result != 0 and node.parent is not None:
-                node.wins += 1.0 if result == node.player else -1.0
+            if node.parent is not None:
+                if result == 0:
+                    node.wins += 0.5
+                elif result == node.player:
+                    node.wins += 1.0
             node = node.parent
-
-    @staticmethod
-    def _outcome(game: CaroGame) -> int:
-        """+1/-1/0 tuyệt đối; nếu chưa kết thúc thì chấm bằng fast_evaluate."""
-        if game.is_terminal():
-            return game.result()
-        me = game.current_player
-        score = fast_evaluate(game.board, me)
-        if score > EVAL_MARGIN:
-            return me
-        if score < -EVAL_MARGIN:
-            return -me
-        return 0
