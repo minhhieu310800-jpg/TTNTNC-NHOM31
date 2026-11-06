@@ -1,0 +1,23 @@
+# Chạy thử nhanh arena (vài phút): kiểm tra log và thống kê, KHÔNG dùng cho báo cáo.
+# python -m arena.tournament configs/arena/smoke.yaml
+name: smoke
+mode: A                  # A: ngân sách cố định (budget giây/nước); B: cấu hình mặc định (budget=None)
+budget: 0.05             # giây/nước
+size: 11
+rule: vietnam
+openings_file: configs/openings.json
+num_openings: 3          # 3 khai cuộc x 2 lượt đổi bên = 6 ván/cặp mỗi seed
+seeds: [0, 1]            # cặp có tác tử ngẫu nhiên chạy mọi seed, cặp tất định chỉ seed đầu
+workers: 2               # số tiến trình chạy song song
+
+agents:
+  random:
+    type: random
+  heuristic:
+    type: heuristic
+  alphabeta:
+    type: alphabeta
+    params: {depth: 2, fast_eval: true}
+  mcts:
+    type: mcts
+    params: {simulations: 200}
