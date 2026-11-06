@@ -2,3 +2,6 @@ numpy>=1.24.0
 numba>=0.58.0
 pytest>=8.0.0
 pyyaml>=6.0
+# Phân tích log arena (notebook analysis/arena_report.ipynb)
+pandas>=2.0
+matplotlib>=3.7
