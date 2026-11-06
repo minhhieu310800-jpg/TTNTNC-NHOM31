@@ -9,12 +9,13 @@ def play(game, coords):
 
 
 OPENING = [(5, 5), (5, 6), (6, 6), (4, 4)]
+WIN_IN_ONE = [
+    (5, 3), (0, 0), (5, 4), (0, 2), (5, 5), (0, 4), (5, 6), (10, 10),
+]
 
 
 def test_takes_immediate_win():
-    game = play(CaroGame(), [
-        (5, 3), (0, 0), (5, 4), (0, 2), (5, 5), (0, 4), (5, 6), (10, 10),
-    ])
+    game = play(CaroGame(), WIN_IN_ONE)
     action = MCTSAgent(simulations=20, seed=0, use_forced_move=True).select_action(game)
     assert game.action_to_coord(action) in [(5, 2), (5, 7)]
 
@@ -71,19 +72,37 @@ def test_budget_returns_legal_move_in_time():
 
 def test_defaults_are_pure_mcts():
     agent = MCTSAgent()
+    assert agent.name == "mcts"
     assert agent.rollout == "random"
     assert agent.use_forced_move is False
-
-
-def test_defaults_are_pure_mcts():
-    agent = MCTSAgent()
-    assert agent.rollout == "random"
-    assert agent.use_forced_move is False
+    assert agent.simulations == 1600
 
 
 def test_pure_mcts_finds_win_with_enough_sims():
-    game = play(CaroGame(), [
-        (5, 3), (0, 0), (5, 4), (0, 2), (5, 5), (0, 4), (5, 6), (10, 10),
-    ])
+    # Kiểm chứng thực nghiệm: nếu fail, xóa test và ghi vào báo cáo RQ1
+    # (MCTS thuần bỏ sót đòn thắng ngay), không tăng sims để cho qua.
+    game = play(CaroGame(), WIN_IN_ONE)
     action = MCTSAgent(simulations=800, seed=0).select_action(game)
     assert game.action_to_coord(action) in [(5, 2), (5, 7)]
+
+
+def test_win_rate_in_unit_interval():
+    game = play(CaroGame(), OPENING)
+    agent = MCTSAgent(simulations=50, seed=0)
+    agent.select_action(game)
+    assert 0.0 <= agent.last_stats["win_rate"] <= 1.0
+
+
+def test_reset_seed_reproducible():
+    game = play(CaroGame(), OPENING)
+    a = MCTSAgent(simulations=50, seed=1)
+    b = MCTSAgent(simulations=50, seed=2)
+    a.reset_seed(5)
+    b.reset_seed(5)
+    assert a.select_action(game) == b.select_action(game)
+
+
+def test_terminal_state_does_not_crash():
+    game = play(CaroGame(), WIN_IN_ONE + [(5, 7)])
+    assert game.is_terminal()
+    assert MCTSAgent(simulations=10, seed=0).select_action(game) == -1

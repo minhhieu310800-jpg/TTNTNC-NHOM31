@@ -51,6 +51,8 @@ class Node:
 
 class MCTSAgent(Agent):
     
+    name = "mcts"
+    
     def __init__(
         self,
         simulations: int = DEFAULT_SIMULATIONS,
@@ -66,6 +68,9 @@ class MCTSAgent(Agent):
         self.c = c
         self.radius = radius
         self.use_forced_move = use_forced_move
+        self.rng = random.Random(seed)
+
+    def reset_seed(self, seed: int | None = None) -> None:
         self.rng = random.Random(seed)
 
     def _forced_move(self, game: CaroGame) -> int | None:
@@ -106,11 +111,21 @@ class MCTSAgent(Agent):
             self._simulate(root, game)
             sims += 1
 
+        if not root.children:
+            self.last_stats = {
+                "sims": sims,
+                "best_visits": 0,
+                "win_rate": None,
+                "time_used": time.perf_counter() - start,
+            }
+            legal = state.legal_actions()
+            return self.rng.choice(legal) if legal else -1
+
         best = max(root.children, key=lambda ch: ch.visits)
         self.last_stats = {
             "sims": sims,
             "best_visits": best.visits,
-            "win_rate": (best.wins / best.visits + 1.0) / 2.0,  # thang [0, 1]
+            "win_rate": best.wins / best.visits,
             "time_used": time.perf_counter() - start,
         }
         return best.action
