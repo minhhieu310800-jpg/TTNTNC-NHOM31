@@ -8,13 +8,16 @@ from typing import Any
 
 from agents import AlphaBetaAgent, HeuristicAgent, MCTSAgent, RandomAgent
 from agents.base import Agent
+from agents.puct_agent import PUCTAgent
 
-# Loại tác tử -> lớp. Cấp 5–8 thêm vào đây khi có.
+# Loại tác tử -> lớp. Cấp 5–6 thêm vào đây khi có.
+# "puct": cấp 7 (checkpoint mạng cấp 5/6) hoặc cấp 8 (checkpoint AlphaZero), params: checkpoint, simulations.
 AGENT_TYPES: dict[str, type[Agent]] = {
     "random": RandomAgent,
     "heuristic": HeuristicAgent,
     "alphabeta": AlphaBetaAgent,
     "mcts": MCTSAgent,
+    "puct": PUCTAgent,
 }
 
 # Tác tử có yếu tố ngẫu nhiên thật sự -> chạy thêm nhiều seed (proposal mục 6).

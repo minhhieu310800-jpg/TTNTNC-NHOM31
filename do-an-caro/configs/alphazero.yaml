@@ -1,0 +1,38 @@
+# Cấp 8 – AlphaZero-inspired (proposal mục 5), bản rút gọn để kịp tiến độ.
+# Mac:   python -m training.alphazero configs/alphazero.yaml --workers 6
+# Colab: python -m training.alphazero configs/alphazero.yaml --device cuda \
+#            --out-dir /content/drive/MyDrive/caro/alphazero --max-hours 3
+# Bị ngắt thì chạy lại đúng lệnh cũ để làm tiếp.
+name: az_v1
+out_dir: checkpoints/alphazero      # nằm trong .gitignore; Colab nên trỏ vào Google Drive
+seed: 2026
+device: auto                         # auto: cuda nếu có, không thì cpu
+rounds: 6                            # proposal 8–12 vòng; tăng --rounds nếu còn thời gian
+
+network:
+  blocks: 4                          # proposal: thu nhỏ còn 4 khối, 64 kênh
+  channels: 64
+
+selfplay:
+  games_per_round: 100               # proposal 100–200
+  chunk_games: 20                    # số ván chơi song song và lưu thành một file (đơn vị chạy tiếp)
+  workers: 1                         # số tiến trình khi chạy CPU (Mac: 6); GPU luôn dùng 1
+  simulations: 100                   # proposal 100–200 mô phỏng PUCT/nước
+  c_puct: 1.5
+  dirichlet_alpha: 0.15
+  dirichlet_eps: 0.25
+  temp_moves: 10                     # 10 nước đầu chọn theo phân bố lượt thăm để đa dạng
+
+buffer_rounds: 4                     # proposal: replay buffer giữ 3–5 vòng gần nhất
+
+train:                               # proposal mục 5: Adam, lr 1e-3, batch 256, L2
+  epochs: 2
+  batch_size: 256
+  lr: 0.001
+  weight_decay: 0.0001
+
+gating:
+  games: 40                          # proposal: gating 40 ván với checkpoint trước
+  simulations: 100
+  threshold: 0.55                    # giữ mạng mới nếu score >= 55%
+  openings_file: configs/openings.json
