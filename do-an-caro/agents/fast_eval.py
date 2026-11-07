@@ -95,10 +95,11 @@ def _eval_numba(board: np.ndarray, player: int, scores: np.ndarray) -> float:
                         continue
                     total += sign * scores[5, 0]
                 elif cnt == 4:
-                    # 1 ô trống trong cửa sổ hoàn thành năm; nếu ô trống ở đầu
-                    # cửa sổ và đầu kia cũng trống thì có 2 điểm hoàn thành.
+                    # Lấp đầy cửa sổ tạo thành năm bị chặn hai đầu thì không tính điểm.
+                    if before == -owner and after == -owner:
+                        continue
                     idx = 1
-                    if empty_idx == 0 and after == 0:
+                    if (empty_idx == 0 and after == 0) or (empty_idx == 4 and before == 0):
                         idx = 2
                     total += sign * scores[4, idx]
                 else:

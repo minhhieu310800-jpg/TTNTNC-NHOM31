@@ -4,7 +4,7 @@ import numpy as np
 
 from agents.fast_eval import fast_evaluate
 from game.game import CaroGame
-from game.patterns import evaluate_board
+from game.patterns import PATTERN_OPEN_FOUR, PATTERN_SCORES, evaluate_board
 
 
 def board_with(stones):
@@ -59,6 +59,18 @@ def test_open_four_beats_blocked_four():
     open_four = board_with(row(range(3, 7), 1))
     blocked_four = board_with({**row(range(3, 7), 1), (5, 2): -1, (5, 7): -1})
     assert fast_evaluate(open_four, 1) > fast_evaluate(blocked_four, 1)
+
+
+def test_open_four_is_counted_from_both_window_directions():
+    open_four = board_with(row(range(3, 7), 1))
+    assert fast_evaluate(open_four, 1) >= 2 * PATTERN_SCORES[PATTERN_OPEN_FOUR]
+
+
+def test_four_completing_a_five_blocked_at_both_ends_is_not_scored():
+    blocked_four = board_with(
+        {**row(range(2, 6), 1), (5, 1): -1, (5, 7): -1}
+    )
+    assert fast_evaluate(blocked_four, 1) < 100_000
 
 
 def test_open_three_beats_blocked_three():
