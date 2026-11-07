@@ -152,9 +152,6 @@ def test_mate_scores_are_normalized_for_transposition_table():
     assert AlphaBetaAgent._score_to_tt(score, ply=3) == score
 
 
-def test_pattern_evaluator_is_default():
-    assert AlphaBetaAgent().fast_eval is False
-
 def test_tt_same_score_many_positions():
     for seed in range(3):
         game = random_position(seed, n_moves=8)
@@ -173,3 +170,13 @@ def test_stops_early_when_win_found():
     agent.select_action(game, budget=1.0)
     assert agent.last_stats["depth_reached"] <= 2
     assert agent.last_stats["time_used"] < 0.5
+
+def test_fast_evaluator_is_default():
+    assert AlphaBetaAgent().fast_eval is True
+
+
+def test_iterative_deepening_capped_at_depth_four():
+    game = random_position(3, n_moves=8)
+    agent = AlphaBetaAgent()
+    agent.select_action(game, budget=5.0)
+    assert agent.last_stats["depth_reached"] <= 4
