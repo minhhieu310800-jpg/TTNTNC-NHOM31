@@ -19,8 +19,10 @@ from training.dataset import (
     deduplicate_samples,
     get_all_symmetries,
     load_dataset,
+    load_part_file,
     samples_to_arrays,
     save_dataset,
+    save_part_file,
     split_games,
     transform_coords,
 )
@@ -143,6 +145,49 @@ class TestDeduplication:
         assert stats["unique_count"] == 2
         assert stats["duplicates_count"] == 2
         assert len(unique) == 2
+
+    def test_deduplicate_average_values(self):
+        size = 11
+        p = np.zeros((4, size, size), dtype=np.uint8)
+        p[0, 5, 5] = 1
+        action = 60
+
+        s1 = TrainingSample(planes=p, action=action, value=1.0, game_id=0, step=2)
+        s2 = TrainingSample(planes=p, action=action, value=-1.0, game_id=1, step=2)
+
+        unique, stats = deduplicate_samples([s1, s2], canonicalize=True, average_values=True)
+        assert len(unique) == 1
+        assert unique[0].value == 0.0
+        assert stats["duplicates_count"] == 1
+
+    def test_deduplicate_exclude_keys_anti_leakage(self):
+        size = 11
+        p = np.zeros((4, size, size), dtype=np.uint8)
+        p[0, 5, 5] = 1
+        action = 60
+
+        s_train = TrainingSample(planes=p, action=action, value=1.0, game_id=0, step=2)
+        train_unique, train_stats = deduplicate_samples([s_train], canonicalize=True)
+        train_keys = train_stats["seen_keys"]
+
+        # s_val có cùng thế cờ sau khi xoay 90 độ
+        p_rot, a_rot = apply_symmetry(p, action, k=1, flip=False)
+        s_val = TrainingSample(planes=p_rot, action=a_rot, value=1.0, game_id=1, step=2)
+
+        # Mẫu s_val_diff khác biệt
+        p_diff = np.zeros((4, size, size), dtype=np.uint8)
+        p_diff[0, 1, 1] = 1
+        s_val_diff = TrainingSample(planes=p_diff, action=12, value=0.0, game_id=2, step=1)
+
+        val_unique, val_stats = deduplicate_samples(
+            [s_val, s_val_diff],
+            canonicalize=True,
+            exclude_keys=train_keys,
+        )
+
+        assert val_stats["excluded_count"] == 1
+        assert len(val_unique) == 1
+        assert val_unique[0].action != a_rot
 
 
 class TestGameSplitting:
@@ -339,3 +384,74 @@ class TestDatasetAndPersistence:
         loaded_json = json.loads(log_path.read_text(encoding="utf-8"))
         assert loaded_json["num_games"] == 6
         assert loaded_json["stats"]["total_unique_states"] <= loaded_json["stats"]["total_raw_states"]
+
+    def test_save_and_load_part_file(self, tmp_path: Path):
+        part_path = tmp_path / "part_0000.npz"
+        games = [
+            GameRecord(
+                game_id=0,
+                winner=1,
+                move_count=2,
+                opening_moves=[60, 48],
+                samples=[
+                    TrainingSample(
+                        planes=np.ones((4, 11, 11), dtype=np.uint8),
+                        action=60,
+                        value=1.0,
+                        game_id=0,
+                        step=0,
+                    )
+                ],
+            )
+        ]
+        save_part_file(part_path, games)
+        assert part_path.exists()
+
+        loaded_games = load_part_file(part_path)
+        assert len(loaded_games) == 1
+        assert loaded_games[0].game_id == 0
+        assert loaded_games[0].winner == 1
+        assert loaded_games[0].opening_moves == [60, 48]
+        assert len(loaded_games[0].samples) == 1
+        assert loaded_games[0].samples[0].action == 60
+
+    def test_generate_dataset_checkpoint_and_resume(self, tmp_path: Path):
+        parts_dir = tmp_path / "parts"
+        cfg = {
+            "name": "test_checkpoint",
+            "game": {"size": 11, "rule": "vietnam"},
+            "generation": {
+                "agent_type": "random",
+                "num_games": 6,
+                "depth": 1,
+                "epsilon": 0.1,
+                "min_opening_moves": 2,
+                "max_opening_moves": 2,
+                "center_radius": 2,
+                "seed": 200,
+                "workers": 1,
+                "chunk_size": 3,
+            },
+            "split": {"train": 0.7, "val": 0.1, "test": 0.2},
+            "deduplication": {"use_symmetries": True, "average_values": True},
+            "output": {
+                "data_dir": str(tmp_path),
+                "dataset_name": "test_chk",
+                "parts_dir": str(parts_dir),
+            },
+        }
+
+        # Lần 1: Chạy sinh 6 ván với chunk_size=3 -> tạo part_0000.npz và part_0001.npz
+        log1 = generate_dataset(cfg, out_dir=tmp_path, name="test_chk", verbose=False)
+        assert log1["num_games"] == 6
+        part_files = sorted(parts_dir.glob("part_*.npz"))
+        assert len(part_files) == 2
+
+        # Lần 2: Chạy lại với resume=True -> phải nhận diện đủ ván từ part và hoàn thành
+        log2 = generate_dataset(cfg, out_dir=tmp_path, name="test_chk", verbose=False, resume=True)
+        assert log2["num_games"] == 6
+        assert log2["stats"]["total_raw_states"] == log1["stats"]["total_raw_states"]
+        assert log2["stats"]["total_unique_states"] == log1["stats"]["total_unique_states"]
+        assert "hardware" in log2
+        assert "cpu_count" in log2["hardware"]
+        assert "platform" in log2["hardware"]

@@ -20,6 +20,7 @@ generation:
   center_radius: 2
   seed: 42
   workers: 1
+  chunk_size: 5                 # Lưu checkpoint mỗi 5 ván
 
 split:
   train: 0.70
@@ -28,7 +29,10 @@ split:
 
 deduplication:
   use_symmetries: true
+  average_values: true
 
 output:
   data_dir: "data"
   dataset_name: "dataset_smoke"
+  parts_dir: "data/parts_smoke"
+

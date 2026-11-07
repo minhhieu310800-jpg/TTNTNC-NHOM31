@@ -12,7 +12,9 @@ from training.dataset import (
     deduplicate_samples,
     get_all_symmetries,
     load_dataset,
+    load_part_file,
     save_dataset,
+    save_part_file,
     split_games,
     transform_coords,
 )
@@ -28,5 +30,8 @@ __all__ = [
     "split_games",
     "save_dataset",
     "load_dataset",
+    "save_part_file",
+    "load_part_file",
     "CaroDataset",
 ]
+

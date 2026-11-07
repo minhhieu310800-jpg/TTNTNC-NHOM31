@@ -36,6 +36,7 @@ from agents.alphabeta_agent import (
     AlphaBetaAgent,
 )
 from agents.random_agent import RandomAgent
+from arena.logger import hardware_info
 from game.constants import (
     BLACK,
     DEFAULT_BOARD_SIZE,
@@ -49,14 +50,17 @@ from training.dataset import (
     GameRecord,
     TrainingSample,
     deduplicate_samples,
+    load_part_file,
     samples_to_arrays,
     save_dataset,
+    save_part_file,
     split_games,
 )
 
 DEFAULT_CONFIG_PATH = "configs/training/generate_data.yaml"
 DEFAULT_OUT_DIR = "data"
 DEFAULT_DATASET_NAME = "dataset_sl"
+DEFAULT_CHUNK_SIZE = 500
 PROGRESS_INTERVAL = 25
 
 
@@ -251,9 +255,14 @@ def generate_dataset(
     workers: int | None = None,
     out_dir: str | Path | None = None,
     name: str | None = None,
+    chunk_size: int | None = None,
+    resume: bool = True,
     verbose: bool = True,
 ) -> dict[str, Any]:
-    """Thực thi pipeline sinh dữ liệu, chia 70/10/20 theo ván, loại trùng 8 phép đối xứng và lưu log."""
+    """Thực thi pipeline sinh dữ liệu, lưu dần theo chunk, chia 70/10/20 theo ván,
+
+    loại trùng 8 phép đối xứng, chống rò rỉ thế cờ và lưu log.
+    """
     start_time = time.perf_counter()
 
     gen_cfg = cfg.get("generation", {})
@@ -264,6 +273,12 @@ def generate_dataset(
     output_dir = Path(out_dir or out_cfg.get("data_dir", DEFAULT_OUT_DIR))
     output_dir.mkdir(parents=True, exist_ok=True)
     dataset_name = name or out_cfg.get("dataset_name", DEFAULT_DATASET_NAME)
+
+    active_chunk_size = int(
+        chunk_size if chunk_size is not None else gen_cfg.get("chunk_size", DEFAULT_CHUNK_SIZE)
+    )
+    parts_dir = Path(out_cfg.get("parts_dir", output_dir / f"{dataset_name}_parts"))
+    parts_dir.mkdir(parents=True, exist_ok=True)
 
     num_workers = int(workers if workers is not None else gen_cfg.get("workers", 1))
     tasks = build_tasks(cfg, limit=limit)
@@ -276,41 +291,97 @@ def generate_dataset(
         print(f"Số ván cần sinh: {total_games}")
         print(f"Tác tử: {tasks[0].agent_type} (độ sâu {tasks[0].depth}, ε = {tasks[0].epsilon})")
         print(f"Số tiến trình (workers): {num_workers}")
+        print(f"Lưu checkpoint mỗi: {active_chunk_size} ván -> {parts_dir}")
         print(f"Thư mục lưu: {output_dir}")
         print(f"------------------------------------------------------------")
 
-    games: list[GameRecord] = []
-    finished_count = 0
+    # 1. Quét các part file đã có nếu bật resume
+    num_chunks = (total_games + active_chunk_size - 1) // active_chunk_size if total_games > 0 else 0
+    existing_games_map: dict[int, GameRecord] = {}
+    completed_chunks: set[int] = set()
 
-    if num_workers <= 1:
-        # Chạy tuần tự (tiết kiệm tài nguyên và dễ debug)
-        for task in tasks:
-            rec = play_self_play_game(task)
-            games.append(rec)
-            finished_count += 1
-            if verbose and (finished_count % PROGRESS_INTERVAL == 0 or finished_count == total_games):
-                elapsed = time.perf_counter() - start_time
-                avg_time = elapsed / finished_count
-                remaining = (total_games - finished_count) * avg_time
-                print(f"  [{finished_count}/{total_games}] ván hoàn thành ({elapsed:.1f}s, dự kiến còn {remaining:.1f}s)")
-    else:
-        # Chạy song song đa tiến trình
-        _limit_threads()
-        ctx = mp.get_context("spawn")
-        with ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx) as executor:
-            futures = [executor.submit(play_self_play_game, t) for t in tasks]
-            for fut in as_completed(futures):
-                rec = fut.result()
-                games.append(rec)
-                finished_count += 1
-                if verbose and (finished_count % PROGRESS_INTERVAL == 0 or finished_count == total_games):
-                    elapsed = time.perf_counter() - start_time
-                    avg_time = elapsed / finished_count
-                    remaining = (total_games - finished_count) * avg_time
-                    print(f"  [{finished_count}/{total_games}] ván hoàn thành ({elapsed:.1f}s, dự kiến còn {remaining:.1f}s)")
+    if resume:
+        for c in range(num_chunks):
+            part_file = parts_dir / f"part_{c:04d}.npz"
+            if part_file.exists():
+                try:
+                    c_games = load_part_file(part_file)
+                    c_start = c * active_chunk_size
+                    c_end = min((c + 1) * active_chunk_size, total_games)
+                    expected_ids = set(range(c_start, c_end))
+                    if {g.game_id for g in c_games} == expected_ids:
+                        for g in c_games:
+                            existing_games_map[g.game_id] = g
+                        completed_chunks.add(c)
+                except Exception:
+                    pass
 
-    # Sắp xếp lại danh sách ván theo đúng thứ tự game_id
-    games.sort(key=lambda g: g.game_id)
+    pending_tasks = [t for t in tasks if t.game_id not in existing_games_map]
+
+    if verbose and len(existing_games_map) > 0:
+        print(f"  [Resume] Tìm thấy {len(existing_games_map)}/{total_games} ván đã hoàn thành "
+              f"từ {len(completed_chunks)} part files. Cần chạy tiếp: {len(pending_tasks)} ván.")
+
+    # Buffer gom các ván của chunk đang chạy dở
+    chunk_buffers: dict[int, dict[int, GameRecord]] = {
+        c: {} for c in range(num_chunks) if c not in completed_chunks
+    }
+
+    finished_count = len(existing_games_map)
+
+    def on_game_finished(rec: GameRecord) -> None:
+        nonlocal finished_count
+        finished_count += 1
+        c = rec.game_id // active_chunk_size
+        if c in chunk_buffers:
+            chunk_buffers[c][rec.game_id] = rec
+            c_start = c * active_chunk_size
+            c_end = min((c + 1) * active_chunk_size, total_games)
+            expected_count = c_end - c_start
+            if len(chunk_buffers[c]) == expected_count:
+                part_file = parts_dir / f"part_{c:04d}.npz"
+                sorted_chunk = [chunk_buffers[c][gid] for gid in range(c_start, c_end)]
+                save_part_file(part_file, sorted_chunk)
+                for g in sorted_chunk:
+                    existing_games_map[g.game_id] = g
+                del chunk_buffers[c]
+                completed_chunks.add(c)
+                if verbose:
+                    print(f"  [Checkpoint] Đã lưu {part_file.name} ({expected_count} ván)")
+
+        if verbose and (finished_count % PROGRESS_INTERVAL == 0 or finished_count == total_games):
+            elapsed = time.perf_counter() - start_time
+            avg_time = elapsed / finished_count if finished_count > 0 else 0
+            remaining = (total_games - finished_count) * avg_time
+            print(f"  [{finished_count}/{total_games}] ván hoàn thành ({elapsed:.1f}s, dự kiến còn {remaining:.1f}s)")
+
+    if pending_tasks:
+        if num_workers <= 1:
+            for task in pending_tasks:
+                rec = play_self_play_game(task)
+                on_game_finished(rec)
+        else:
+            _limit_threads()
+            ctx = mp.get_context("spawn")
+            with ProcessPoolExecutor(max_workers=num_workers, mp_context=ctx) as executor:
+                futures = [executor.submit(play_self_play_game, t) for t in pending_tasks]
+                for fut in as_completed(futures):
+                    rec = fut.result()
+                    on_game_finished(rec)
+
+    # Lưu nốt các ván còn dư nếu chunk cuối chưa đủ
+    for c, buf in list(chunk_buffers.items()):
+        if buf:
+            part_file = parts_dir / f"part_{c:04d}.npz"
+            sorted_chunk = [buf[gid] for gid in sorted(buf.keys())]
+            save_part_file(part_file, sorted_chunk)
+            for g in sorted_chunk:
+                existing_games_map[g.game_id] = g
+            if verbose:
+                print(f"  [Checkpoint] Đã lưu {part_file.name} ({len(sorted_chunk)} ván)")
+
+    # 3. Tập hợp đầy đủ ván theo đúng thứ tự game_id
+    games = [existing_games_map[gid] for gid in range(total_games)]
 
     # 4. Thống kê kết quả các ván
     black_wins = sum(1 for g in games if g.winner == BLACK)
@@ -331,30 +402,63 @@ def generate_dataset(
         seed=base_seed,
     )
 
-    # 6. Thu thập mẫu và loại trùng theo 8 phép đối xứng
+    # 6. Thu thập mẫu và loại trùng theo 8 phép đối xứng (chống rò rỉ giữa các tập)
     use_symmetries = bool(dedup_cfg.get("use_symmetries", True))
+    average_values = bool(dedup_cfg.get("average_values", True))
 
-    def process_split(split_games_list: list[GameRecord], split_name: str) -> tuple[dict[str, np.ndarray], dict[str, int]]:
-        raw_samples = [s for g in split_games_list for s in g.samples]
-        if use_symmetries:
-            unique_samples, stats = deduplicate_samples(raw_samples, canonicalize=True)
-        else:
-            unique_samples = raw_samples
-            stats = {
-                "raw_count": len(raw_samples),
-                "unique_count": len(unique_samples),
-                "duplicates_count": 0,
-            }
-        arrays = samples_to_arrays(unique_samples)
-        return arrays, stats
+    train_raw = [s for g in train_games for s in g.samples]
+    val_raw = [s for g in val_games for s in g.samples]
+    test_raw = [s for g in test_games for s in g.samples]
 
-    train_arrays, train_stats = process_split(train_games, "train")
-    val_arrays, val_stats = process_split(val_games, "val")
-    test_arrays, test_stats = process_split(test_games, "test")
+    if use_symmetries:
+        # Train: loại trùng nội bộ và lấy trung bình value
+        train_unique, train_stats = deduplicate_samples(
+            train_raw,
+            canonicalize=True,
+            average_values=average_values,
+        )
+        train_keys = train_stats["seen_keys"]
+
+        # Val: loại trùng nội bộ, bỏ các thế cờ đã xuất hiện trong train (chống rò rỉ)
+        val_unique, val_stats = deduplicate_samples(
+            val_raw,
+            canonicalize=True,
+            average_values=average_values,
+            exclude_keys=train_keys,
+        )
+        val_keys = val_stats["seen_keys"]
+
+        # Test: loại trùng nội bộ, bỏ các thế cờ đã xuất hiện trong train và val (chống rò rỉ)
+        test_unique, test_stats = deduplicate_samples(
+            test_raw,
+            canonicalize=True,
+            average_values=average_values,
+            exclude_keys=train_keys | val_keys,
+        )
+    else:
+        train_unique = train_raw
+        val_unique = val_raw
+        test_unique = test_raw
+        train_stats = {"raw_count": len(train_raw), "unique_count": len(train_raw), "duplicates_count": 0, "excluded_count": 0}
+        val_stats = {"raw_count": len(val_raw), "unique_count": len(val_raw), "duplicates_count": 0, "excluded_count": 0}
+        test_stats = {"raw_count": len(test_raw), "unique_count": len(test_raw), "duplicates_count": 0, "excluded_count": 0}
+
+    # Bỏ trường seen_keys (chứa set[bytes]) trước khi serialize sang JSON
+    for st in (train_stats, val_stats, test_stats):
+        st.pop("seen_keys", None)
+
+    train_stats["leakage_with_train_removed"] = train_stats.get("excluded_count", 0)
+    val_stats["leakage_with_train_removed"] = val_stats.get("excluded_count", 0)
+    test_stats["leakage_with_train_removed"] = test_stats.get("excluded_count", 0)
+
+    train_arrays = samples_to_arrays(train_unique)
+    val_arrays = samples_to_arrays(val_unique)
+    test_arrays = samples_to_arrays(test_unique)
 
     total_raw = train_stats["raw_count"] + val_stats["raw_count"] + test_stats["raw_count"]
     total_unique = train_stats["unique_count"] + val_stats["unique_count"] + test_stats["unique_count"]
-    total_duplicates = total_raw - total_unique
+    total_duplicates = train_stats["duplicates_count"] + val_stats["duplicates_count"] + test_stats["duplicates_count"]
+    total_leakage = val_stats["leakage_with_train_removed"] + test_stats["leakage_with_train_removed"]
     dedup_ratio = (total_duplicates / total_raw) if total_raw > 0 else 0.0
 
     total_duration = time.perf_counter() - start_time
@@ -390,6 +494,7 @@ def generate_dataset(
         "timestamp": datetime.datetime.now().isoformat(),
         "seed": base_seed,
         "engine_version": ENGINE_VERSION,
+        "hardware": hardware_info(),
         "config": cfg,
         "num_games": total_games,
         "time_elapsed_seconds": round(total_duration, 2),
@@ -405,6 +510,7 @@ def generate_dataset(
             "total_raw_states": total_raw,
             "total_unique_states": total_unique,
             "total_duplicates_removed": total_duplicates,
+            "total_leakage_with_train_removed": total_leakage,
             "deduplication_ratio": round(dedup_ratio, 4),
             "splits": {
                 "train": {
@@ -426,6 +532,7 @@ def generate_dataset(
             "train": str(output_dir / f"{dataset_name}_train.npz"),
             "val": str(output_dir / f"{dataset_name}_val.npz"),
             "test": str(output_dir / f"{dataset_name}_test.npz"),
+            "parts_dir": str(parts_dir),
         },
     }
 
@@ -438,12 +545,14 @@ def generate_dataset(
         print(f"Kết quả ván: Đen thắng {black_wins}, Trắng thắng {white_wins}, Hoà {draws}")
         print(f"Tổng số thế cờ ban đầu: {total_raw}")
         print(f"Tổng số thế cờ duy nhất (sau 8 đối xứng): {total_unique}")
-        print(f"Số bản trùng đã loại bỏ: {total_duplicates} ({dedup_ratio*100:.1f}%)")
+        print(f"Số bản trùng nội bộ đã gộp/lấy TB: {total_duplicates} ({dedup_ratio*100:.1f}%)")
+        print(f"Số thế cờ trùng Train đã loại bỏ khỏi Val/Test (chống rò rỉ): {total_leakage}")
         print(f"Chia tập: Train {train_stats['unique_count']} ({len(train_games)} ván) | "
               f"Val {val_stats['unique_count']} ({len(val_games)} ván) | "
               f"Test {test_stats['unique_count']} ({len(test_games)} ván)")
         print(f"Đã lưu:")
         print(f"  - Dataset: {unified_path}")
+        print(f"  - Parts:   {parts_dir}")
         print(f"  - Log:     {log_path}")
         print(f"============================================================")
 
@@ -462,6 +571,8 @@ def main() -> None:
     )
     parser.add_argument("--limit", type=int, default=None, help="Chỉ sinh tối đa N ván (dùng cho test/debug)")
     parser.add_argument("--workers", type=int, default=None, help="Số tiến trình chạy song song")
+    parser.add_argument("--chunk-size", type=int, default=None, help="Kích thước mỗi chunk checkpoint (mặc định 500)")
+    parser.add_argument("--no-resume", action="store_true", help="Không tải lại các part file đã có, chạy lại từ đầu")
     parser.add_argument("--out-dir", default=None, help="Thư mục xuất dữ liệu (mặc định trong config)")
     parser.add_argument("--name", default=None, help="Tên bộ dữ liệu (mặc định trong config)")
     args = parser.parse_args()
@@ -473,8 +584,11 @@ def main() -> None:
         workers=args.workers,
         out_dir=args.out_dir,
         name=args.name,
+        chunk_size=args.chunk_size,
+        resume=not args.no_resume,
     )
 
 
 if __name__ == "__main__":
     main()
+

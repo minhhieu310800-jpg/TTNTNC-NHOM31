@@ -24,6 +24,7 @@ generation:
   center_radius: 2              # Bán kính quanh tâm cho nước khai cuộc
   seed: 20261120                # Seed cố định đảm bảo tái lập
   workers: 4                    # Số tiến trình song song
+  chunk_size: 500               # Lưu checkpoint mỗi 500 ván vào part file, chạy tiếp được
 
 split:
   train: 0.70                   # 70% ván train
@@ -32,7 +33,10 @@ split:
 
 deduplication:
   use_symmetries: true          # Chuẩn hoá và loại trùng theo 8 phép đối xứng
+  average_values: true          # Lấy trung bình value của các thế cờ trùng lặp
 
 output:
   data_dir: "data"
   dataset_name: "dataset_sl"
+  parts_dir: "data/parts"       # Thư mục lưu các part file checkpoint
+

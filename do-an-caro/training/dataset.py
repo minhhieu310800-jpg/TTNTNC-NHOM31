@@ -144,41 +144,74 @@ class GameRecord:
 
 def deduplicate_samples(
     samples: list[TrainingSample],
-    canonicalize: bool = True
-) -> tuple[list[TrainingSample], dict[str, int]]:
+    canonicalize: bool = True,
+    average_values: bool = True,
+    exclude_keys: set[bytes] | None = None,
+) -> tuple[list[TrainingSample], dict[str, Any]]:
     """Loại bỏ các thế cờ trùng nhau qua 8 phép đối xứng.
 
     Args:
         samples: Danh sách các mẫu ban đầu
         canonicalize: Nếu True, chuyển mẫu về dạng chuẩn tắc canonical
+        average_values: Nếu True, lấy trung bình value của các bản trùng lặp
+        exclude_keys: Tập các khoá chuẩn tắc cần loại bỏ (tránh rò rỉ từ tập khác)
 
     Returns:
-        (unique_samples, stats) với stats chứa raw_count, unique_count, duplicates_count
+        (unique_samples, stats) với stats chứa raw_count, unique_count, duplicates_count,
+        excluded_count, và seen_keys.
     """
-    seen: set[bytes] = set()
-    unique: list[TrainingSample] = []
+    seen_keys: set[bytes] = set()
+    key_to_sample: dict[bytes, TrainingSample] = {}
+    key_to_values: dict[bytes, list[float]] = {}
+    duplicates_count = 0
+    excluded_count = 0
 
     for s in samples:
         key, c_planes, c_action, c_val = canonical_form(s.planes, s.action, s.value)
-        if key not in seen:
-            seen.add(key)
-            if canonicalize:
-                unique.append(TrainingSample(
-                    planes=c_planes,
-                    action=c_action,
-                    value=c_val,
-                    game_id=s.game_id,
-                    step=s.step,
-                ))
-            else:
-                unique.append(s)
+        if exclude_keys is not None and key in exclude_keys:
+            excluded_count += 1
+            continue
+
+        if key in seen_keys:
+            duplicates_count += 1
+            if average_values:
+                key_to_values[key].append(c_val)
+        else:
+            seen_keys.add(key)
+            stored = TrainingSample(
+                planes=c_planes if canonicalize else s.planes,
+                action=c_action if canonicalize else s.action,
+                value=c_val if canonicalize else s.value,
+                game_id=s.game_id,
+                step=s.step,
+            )
+            key_to_sample[key] = stored
+            if average_values:
+                key_to_values[key] = [c_val]
+
+    if average_values:
+        unique_samples = []
+        for key, s in key_to_sample.items():
+            vals = key_to_values[key]
+            avg_val = round(float(np.mean(vals)), 4) if len(vals) > 1 else s.value
+            unique_samples.append(TrainingSample(
+                planes=s.planes,
+                action=s.action,
+                value=avg_val,
+                game_id=s.game_id,
+                step=s.step,
+            ))
+    else:
+        unique_samples = list(key_to_sample.values())
 
     stats = {
         "raw_count": len(samples),
-        "unique_count": len(unique),
-        "duplicates_count": len(samples) - len(unique),
+        "unique_count": len(unique_samples),
+        "duplicates_count": duplicates_count,
+        "excluded_count": excluded_count,
+        "seen_keys": seen_keys,
     }
-    return unique, stats
+    return unique_samples, stats
 
 
 def split_games(
@@ -252,16 +285,83 @@ def load_dataset(path: str | Path, split: str | None = None) -> dict[str, np.nda
     Nếu split được chỉ định ("train", "val", "test"), trả về dict với các key
     "planes", "actions", "values", "game_ids" tương ứng của split đó.
     """
-    loaded = np.load(path)
-    if split is not None:
-        prefix = f"{split}_"
-        return {
-            "planes": loaded[f"{prefix}planes"],
-            "actions": loaded[f"{prefix}actions"],
-            "values": loaded[f"{prefix}values"],
-            "game_ids": loaded[f"{prefix}game_ids"],
-        }
-    return dict(loaded)
+    with np.load(path) as loaded:
+        if split is not None:
+            prefix = f"{split}_"
+            return {
+                "planes": loaded[f"{prefix}planes"].copy(),
+                "actions": loaded[f"{prefix}actions"].copy(),
+                "values": loaded[f"{prefix}values"].copy(),
+                "game_ids": loaded[f"{prefix}game_ids"].copy(),
+            }
+        return {k: loaded[k].copy() for k in loaded.files}
+
+
+def save_part_file(part_path: str | Path, games: list[GameRecord]) -> Path:
+    """Lưu một phần (chunk) các ván cờ vào file .npz để phục vụ checkpoint và chạy tiếp."""
+    out_path = Path(part_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    all_samples = [s for g in games for s in g.samples]
+    arrays = samples_to_arrays(all_samples)
+    opening_flat = [m for g in games for m in g.opening_moves]
+    game_meta = {
+        "meta_game_ids": np.array([g.game_id for g in games], dtype=np.int32),
+        "meta_winners": np.array([0 if g.winner is None else g.winner for g in games], dtype=np.int8),
+        "meta_move_counts": np.array([g.move_count for g in games], dtype=np.int32),
+        "meta_durations": np.array([g.duration for g in games], dtype=np.float32),
+        "meta_opening_flat": np.array(opening_flat, dtype=np.int16),
+        "meta_opening_lens": np.array([len(g.opening_moves) for g in games], dtype=np.int16),
+    }
+    np.savez_compressed(out_path, **arrays, **game_meta)
+    return out_path
+
+
+def load_part_file(part_path: str | Path) -> list[GameRecord]:
+    """Nạp một file chunk .npz và tái tạo danh sách GameRecord."""
+    with np.load(part_path) as loaded:
+        planes = loaded["planes"].copy()
+        actions = loaded["actions"].copy()
+        values = loaded["values"].copy()
+        sample_gids = loaded["game_ids"].copy()
+        meta_gids = loaded["meta_game_ids"].copy()
+        meta_winners = loaded["meta_winners"].copy()
+        meta_moves = loaded["meta_move_counts"].copy()
+        meta_dur = loaded["meta_durations"].copy()
+        if "meta_opening_flat" in loaded and "meta_opening_lens" in loaded:
+            opening_flat = loaded["meta_opening_flat"].copy()
+            opening_lens = loaded["meta_opening_lens"].copy()
+            op_offset = 0
+            openings: list[list[int]] = []
+            for l in opening_lens:
+                openings.append(opening_flat[op_offset:op_offset + l].tolist())
+                op_offset += l
+        else:
+            openings = [[] for _ in meta_gids]
+
+    records: list[GameRecord] = []
+    sample_idx = 0
+    total_samples = len(sample_gids)
+
+    for idx, gid in enumerate(meta_gids):
+        g_samples: list[TrainingSample] = []
+        while sample_idx < total_samples and sample_gids[sample_idx] == gid:
+            g_samples.append(TrainingSample(
+                planes=planes[sample_idx],
+                action=int(actions[sample_idx]),
+                value=float(values[sample_idx]),
+                game_id=int(gid),
+                step=len(g_samples) + 1,
+            ))
+            sample_idx += 1
+        records.append(GameRecord(
+            game_id=int(gid),
+            samples=g_samples,
+            winner=int(meta_winners[idx]),
+            move_count=int(meta_moves[idx]),
+            duration=float(meta_dur[idx]),
+            opening_moves=openings[idx],
+        ))
+    return records
 
 
 class CaroDataset(TorchDataset):
@@ -327,3 +427,4 @@ class CaroDataset(TorchDataset):
             augment=augment,
             to_tensor=to_tensor,
         )
+
