@@ -1,0 +1,38 @@
+# Cấu hình sinh dữ liệu huấn luyện Supervised Learning cho Caro 11x11
+# Tham khảo: Proposal mục 5 và GitHub Issue #9
+
+name: "dataset_sl"
+
+game:
+  size: 11
+  rule: "vietnam"  # "vietnam" (thắng 5, không bị chặn 2 đầu)
+  win_streak: 5
+
+generation:
+  agent_type: "alphabeta"       # "alphabeta" hoặc "random"
+  num_games: 20000              # ~20.000 ván theo proposal
+  depth: 3                      # Độ sâu 3 theo proposal
+  epsilon: 0.1                  # ε = 0.1 để đa dạng hoá thế cờ
+  radius: 2                     # Bán kính ứng viên quanh quân đã đánh
+  fast_eval: true               # Dùng fast_evaluate tăng tốc
+  use_pruning: true             # Bật cắt tỉa Alpha-Beta
+  use_move_ordering: true       # Sắp xếp nước đi
+  ordering: "cheap"             # Sắp xếp nhanh theo lân cận
+  use_tt: true                  # Bảng chuyển vị Zobrist
+  min_opening_moves: 2          # Khai cuộc ngẫu nhiên 2-4 nước gần tâm
+  max_opening_moves: 4
+  center_radius: 2              # Bán kính quanh tâm cho nước khai cuộc
+  seed: 20261120                # Seed cố định đảm bảo tái lập
+  workers: 4                    # Số tiến trình song song
+
+split:
+  train: 0.70                   # 70% ván train
+  val: 0.10                     # 10% ván validation
+  test: 0.20                    # 20% ván test
+
+deduplication:
+  use_symmetries: true          # Chuẩn hoá và loại trùng theo 8 phép đối xứng
+
+output:
+  data_dir: "data"
+  dataset_name: "dataset_sl"
