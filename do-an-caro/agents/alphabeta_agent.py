@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 WIN_SCORE = 10**9      # lớn hơn PATTERN_FIVE (100_000_000)
 MATE_SCORE_THRESHOLD = WIN_SCORE - 1_000
 DEFAULT_DEPTH = 3
+MAX_DEPTH = 4          # giới hạn iterative deepening (theo proposal)   
 CANDIDATE_RADIUS = 2
 INF = float("inf")
 TT_EXACT, TT_LOWER, TT_UPPER = 0, 1, 2
@@ -49,7 +50,7 @@ class AlphaBetaAgent(Agent):
         use_pruning: bool = True,
         use_move_ordering: bool = True,
         ordering: str = ORDERING_CHEAP,
-        fast_eval: bool = False,
+        fast_eval: bool = True,
         use_tt: bool = True,
     ) -> None:
         super().__init__()
@@ -147,7 +148,7 @@ class AlphaBetaAgent(Agent):
             depth_reached = 1
             if best_value < MATE_SCORE_THRESHOLD:
                 self._deadline = start + budget
-                max_depth = len(state.legal_actions())
+                max_depth = min(MAX_DEPTH, len(state.legal_actions()))
                 for d in range(2, max_depth + 1):
                     try:
                         best_action, best_value = self._search_root(state, d)
@@ -212,7 +213,6 @@ class AlphaBetaAgent(Agent):
             if self.fast_eval:
                 return fast_evaluate(state.board, state.current_player)
             return evaluate_board(state.board, state.current_player, state.rule)
-
 
         key = 0
         tt_move = None
