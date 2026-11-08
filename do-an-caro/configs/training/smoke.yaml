@@ -1,0 +1,38 @@
+# Cấu hình kiểm thử nhanh (smoke test) sinh dữ liệu
+# Sử dụng RandomAgent để chạy thử nghiệm toàn bộ pipeline trong vài giây
+
+name: "dataset_smoke"
+
+game:
+  size: 11
+  rule: "vietnam"
+  win_streak: 5
+
+generation:
+  agent_type: "random"          # Khung kiểm thử nhanh với RandomAgent
+  num_games: 10                 # 10 ván smoke test
+  depth: 1
+  epsilon: 0.1
+  radius: 2
+  fast_eval: true
+  min_opening_moves: 2
+  max_opening_moves: 2
+  center_radius: 2
+  seed: 42
+  workers: 1
+  chunk_size: 5                 # Lưu checkpoint mỗi 5 ván
+
+split:
+  train: 0.70
+  val: 0.10
+  test: 0.20
+
+deduplication:
+  use_symmetries: true
+  average_values: true
+
+output:
+  data_dir: "data"
+  dataset_name: "dataset_smoke"
+  parts_dir: "data/parts_smoke"
+
