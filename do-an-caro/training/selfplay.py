@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 
 from agents.network import encode_game
-from agents.puct_agent import DEFAULT_C_PUCT, Evaluator, PUCTTree
+from agents.puct_agent import DEFAULT_C_PUCT, DEFAULT_FPU, DEFAULT_RADIUS, Evaluator, PUCTTree
 from game.constants import DEFAULT_BOARD_SIZE, RULE_VIETNAM
 from game.game import CaroGame
 
@@ -28,6 +28,8 @@ class SelfPlayConfig:
     dirichlet_alpha: float = 0.15   # ~10 / số nước hợp lệ trung bình
     dirichlet_eps: float = 0.25
     temp_moves: int = 10            # số nước đầu chọn theo phân bố lượt thăm (khám phá)
+    radius: int | None = DEFAULT_RADIUS   # chỉ xét ô trong bán kính quanh quân đã đánh
+    fpu: float = DEFAULT_FPU
     size: int = DEFAULT_BOARD_SIZE
     rule: str = RULE_VIETNAM
 
@@ -57,7 +59,8 @@ def play_games(
     num_cells = cfg.size * cfg.size
     games = [CaroGame(size=cfg.size, rule=cfg.rule) for _ in range(n_games)]
     trees = [
-        PUCTTree(g.current_player, cfg.c_puct, (cfg.dirichlet_alpha, cfg.dirichlet_eps), rng)
+        PUCTTree(g.current_player, cfg.c_puct, (cfg.dirichlet_alpha, cfg.dirichlet_eps), rng,
+                 radius=cfg.radius, fpu=cfg.fpu)
         for g in games
     ]
     records: list[list[tuple[np.ndarray, np.ndarray, int]]] = [[] for _ in range(n_games)]

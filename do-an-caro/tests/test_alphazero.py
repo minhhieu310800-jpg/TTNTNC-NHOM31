@@ -65,9 +65,9 @@ def test_repo_configs_load():
     cfg = load_config(ROOT / "configs" / "alphazero.yaml")
     assert cfg["network"] == {"blocks": 4, "channels": 64}
     assert cfg["gating"]["threshold"] == 0.55 and cfg["buffer_rounds"] == 4
-    v2 = load_config(ROOT / "configs" / "alphazero_v2.yaml")
-    assert v2["network"] == cfg["network"]  # phải giống giai đoạn 1 để nạp được checkpoint
-    assert v2["out_dir"] == cfg["out_dir"] and v2["rounds"] == 16
-    assert v2["selfplay"]["games_per_round"] == 200 and v2["train"]["epochs"] == 10
+    assert cfg["out_dir"] == "checkpoints/alphazero2" and cfg["rounds"] == 12
+    assert cfg["selfplay"]["games_per_round"] == 200 and cfg["train"]["epochs"] == 5
+    assert cfg["selfplay"]["radius"] == 2 and cfg["selfplay"]["fpu"] == 0.25
     smoke = load_config(ROOT / "configs" / "alphazero_smoke.yaml")
     assert smoke["selfplay"]["games_per_round"] == 8 and smoke["selfplay"]["c_puct"] == 1.5
+    assert smoke["selfplay"]["radius"] == 2  # lấy từ DEFAULTS
