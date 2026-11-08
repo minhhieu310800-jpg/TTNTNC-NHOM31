@@ -30,6 +30,23 @@ python -m training.alphazero configs/alphazero.yaml --workers 6 --rounds 10
 
 Trên Colab: mở `training/alphazero_colab.ipynb`, chọn GPU T4, chạy lần lượt các ô.
 
+### Hai giai đoạn huấn luyện
+
+| Giai đoạn | Vòng | Cấu hình | Ván/vòng | Epoch/vòng |
+|---|---|---|---|---|
+| 1 | 1–6 | `configs/alphazero.yaml` | 100 | 2 |
+| 2 | 7–16 | `configs/alphazero_v2.yaml` | 200 | 10 |
+
+Sau 6 vòng đầu, policy_loss khoảng 4,59 và value_loss khoảng 0,74: mỗi vòng chỉ có khoảng 100–150
+bước cập nhật nên mạng học chậm. Giai đoạn 2 tăng số ván và số epoch (vẫn trong khoảng của proposal).
+Hai giai đoạn dùng **cùng `out_dir`**, nên giai đoạn 2 chạy tiếp từ vòng 7:
+
+```bash
+python -m training.alphazero configs/alphazero_v2.yaml --device cuda --out-dir /content/drive/MyDrive/caro/alphazero --max-hours 3
+```
+
+Không đổi `network` giữa hai giai đoạn (đổi thì không nạp được checkpoint cũ).
+
 **Bị ngắt thì chạy lại đúng lệnh cũ**: chương trình đọc `state.json` và làm tiếp từ
 nhóm ván, bước train hoặc gating đang dở. `--max-hours 3` tự dừng an toàn sau 3 giờ.
 
