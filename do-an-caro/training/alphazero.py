@@ -55,13 +55,14 @@ Z95 = 1.959963984540054
 
 DEFAULTS: dict[str, Any] = {
     "name": "alphazero",
-    "out_dir": "checkpoints/alphazero",
+    "out_dir": "checkpoints/alphazero2",
     "seed": 2026,
     "device": "auto",
     "rounds": 8,
     "network": {"blocks": 4, "channels": 64},
     "selfplay": {"games_per_round": 100, "chunk_games": 20, "workers": 1, "simulations": 100,
-                 "c_puct": 1.5, "dirichlet_alpha": 0.15, "dirichlet_eps": 0.25, "temp_moves": 10},
+                 "c_puct": 1.5, "dirichlet_alpha": 0.15, "dirichlet_eps": 0.25, "temp_moves": 10,
+                 "radius": 2, "fpu": 0.25},
     "buffer_rounds": 4,
     "train": {"epochs": 2, "batch_size": 256, "lr": 1e-3, "weight_decay": 1e-4},
     "gating": {"games": 40, "simulations": 100, "threshold": 0.55,
@@ -109,7 +110,7 @@ def _selfplay_cfg(cfg: dict[str, Any]) -> SelfPlayConfig:
     sp = cfg["selfplay"]
     return SelfPlayConfig(simulations=sp["simulations"], c_puct=sp["c_puct"],
                           dirichlet_alpha=sp["dirichlet_alpha"], dirichlet_eps=sp["dirichlet_eps"],
-                          temp_moves=sp["temp_moves"])
+                          temp_moves=sp["temp_moves"], radius=sp["radius"], fpu=sp["fpu"])
 
 
 def _selfplay_chunk(args: tuple[str, str, int, SelfPlayConfig, int]) -> dict[str, Any]:
@@ -277,8 +278,10 @@ class AlphaZeroRunner:
         t0 = time.perf_counter()
         cand_model, _ = load_checkpoint(self.out / "current.pt", self.device)
         best_model, _ = load_checkpoint(self.out / "best.pt", self.device)
-        cand = PUCTAgent(evaluator=NetEvaluator(cand_model, self.device), simulations=g["simulations"])
-        best = PUCTAgent(evaluator=NetEvaluator(best_model, self.device), simulations=g["simulations"])
+        sp = self.cfg["selfplay"]
+        search = {"simulations": g["simulations"], "radius": sp["radius"], "fpu": sp["fpu"]}
+        cand = PUCTAgent(evaluator=NetEvaluator(cand_model, self.device), **search)
+        best = PUCTAgent(evaluator=NetEvaluator(best_model, self.device), **search)
         openings = load_openings(g["openings_file"])[: (g["games"] + 1) // 2]
         points, games = 0.0, 0
         for op in openings:

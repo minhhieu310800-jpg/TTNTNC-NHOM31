@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from agents.network import PolicyValueNet, save_checkpoint
-from agents.puct_agent import PUCTAgent, PUCTTree, UniformEvaluator, run_search
+from agents.puct_agent import Node, PUCTAgent, PUCTTree, UniformEvaluator, run_search
 from arena.agent_factory import AgentSpec, build_agent
 from game.game import CaroGame
 from training.selfplay import SelfPlayConfig, play_games, symmetry
@@ -48,7 +48,8 @@ def test_search_leaves_game_unchanged_and_policy_is_valid():
 
 def test_advance_keeps_subtree_and_dirichlet_noise_is_valid():
     game = CaroGame()
-    tree = PUCTTree(1, dirichlet=(0.3, 0.25), rng=np.random.default_rng(0))
+    # bàn trống + radius chỉ có 1 nước (tâm), nên tắt radius để thử nhiễu
+    tree = PUCTTree(1, dirichlet=(0.3, 0.25), rng=np.random.default_rng(0), radius=None)
     run_search(tree, game, UniformEvaluator(), simulations=40)
     assert abs(tree.root.P.sum() - 1) < 1e-6
     assert not np.allclose(tree.root.P, tree.root.P[0])  # nhiễu đã trộn vào prior đều
@@ -57,6 +58,30 @@ def test_advance_keeps_subtree_and_dirichlet_noise_is_valid():
     tree.advance(best)
     assert tree.root.total == child_visits - 1
     assert tree.root.to_play == -1
+
+
+def test_radius_limits_moves_to_neighborhood():
+    game = _game([60], [], x_to_move=False)  # X ở tâm (5,5), đến lượt O
+    tree = PUCTTree(game.current_player, radius=2)
+    run_search(tree, game, UniformEvaluator(), simulations=30)
+    rows, cols = np.divmod(tree.root.actions, 11)
+    assert len(tree.root.actions) == 24  # ô 5x5 quanh tâm trừ ô đã đánh
+    assert np.all(np.abs(rows - 5) <= 2) and np.all(np.abs(cols - 5) <= 2)
+    full = PUCTTree(game.current_player, radius=None)
+    run_search(full, game, UniformEvaluator(), simulations=2)
+    assert len(full.root.actions) == 120
+
+
+def test_fpu_lowers_q_of_unvisited_moves():
+    node = Node(1)
+    node.expand(np.array([0.6, 0.3, 0.1]), np.array([True, True, True]))
+    node.N[:] = [3, 0, 0]
+    node.W[:] = [0.6, 0, 0]          # Q(nước 0) = 0.2, Q(cha) = 0.2
+    node.total = 3
+    # Không FPU: nước 1 chưa thăm có Q = Q(cha), U lớn hơn nước 0 -> được chọn
+    assert node.select(1.0, fpu=0.0) == 1
+    # FPU: Q(nước 1) = 0.2 - 1.0 * sqrt(0.6) < 0 -> quay lại nước 0
+    assert node.select(1.0, fpu=1.0) == 0
 
 
 def test_symmetry_moves_planes_and_policy_together():

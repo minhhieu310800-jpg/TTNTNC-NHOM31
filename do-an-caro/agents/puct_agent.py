@@ -23,12 +23,21 @@ import numpy as np
 
 from agents.base import Agent
 from agents.network import encode_game, load_evaluator
+from game.patterns import get_candidate_moves
 
 if TYPE_CHECKING:
     from game.game import CaroGame
 
 DEFAULT_C_PUCT = 1.5
 DEFAULT_SIMULATIONS = 400       # chế độ B: PUCT 400 mô phỏng (proposal mục 6)
+# Chỉ xét ô trong bán kính 2 quanh các quân đã đánh (như cấp 3–4, proposal "vùng lân cận").
+# Không giới hạn thì gốc có ~119 nước, 100–200 mô phỏng chỉ thăm mỗi nước ~1 lần: tìm kiếm
+# không đi sâu được, nhãn π gần như đều và mạng không học được (đã gặp ở 6 vòng đầu).
+DEFAULT_RADIUS = 2
+# First-play urgency kiểu Leela Zero: nước chưa thăm có Q = Q(cha) − FPU·√(tổng P các nước đã thăm).
+# Mạng còn ngẫu nhiên (P rải đều) thì mức giảm nhỏ, vẫn khám phá; mạng đã tự tin thì tìm kiếm
+# đi sâu vào vài nước tốt thay vì rải đều.
+DEFAULT_FPU = 0.25
 
 
 class Evaluator(Protocol):
@@ -69,8 +78,11 @@ class Node:
         self.N = np.zeros(len(p))
         self.W = np.zeros(len(p))
 
-    def select(self, c_puct: float) -> int:
-        q = np.divide(self.W, self.N, out=np.zeros_like(self.W), where=self.N > 0)
+    def select(self, c_puct: float, fpu: float = 0.0) -> int:
+        visited = self.N > 0
+        parent_q = self.W.sum() / self.total if self.total > 0 else 0.0
+        first_play = parent_q - fpu * math.sqrt(float(self.P[visited].sum()))
+        q = np.divide(self.W, self.N, out=np.full_like(self.W, first_play), where=visited)
         u = c_puct * self.P * math.sqrt(max(self.total, 1)) / (1.0 + self.N)
         return int(np.argmax(q + u))
 
@@ -91,9 +103,13 @@ class PUCTTree:
         c_puct: float = DEFAULT_C_PUCT,
         dirichlet: tuple[float, float] | None = None,
         rng: np.random.Generator | None = None,
+        radius: int | None = DEFAULT_RADIUS,
+        fpu: float = DEFAULT_FPU,
     ) -> None:
         self.root = Node(to_play)
         self.c_puct = c_puct
+        self.radius = radius             # None: xét mọi ô trống
+        self.fpu = fpu
         self.dirichlet = dirichlet       # (alpha, epsilon) cho self-play; None khi thi đấu
         self.rng = rng or np.random.default_rng()
         self._root_noised = False
@@ -113,7 +129,7 @@ class PUCTTree:
         steps = 0
         try:
             while node.expanded and not game.is_terminal():
-                idx = node.select(self.c_puct)
+                idx = node.select(self.c_puct, self.fpu)
                 game.step(int(node.actions[idx]))
                 steps += 1
                 path.append((node, idx))
@@ -126,6 +142,10 @@ class PUCTTree:
                 # Người vừa đi đã thắng (hoặc hòa) -> người đến lượt ở lá thua.
                 return Leaf(node, path, value=0.0 if game.result() == 0 else -1.0)
             planes, mask = encode_game(game)
+            if self.radius is not None:
+                near = np.zeros_like(mask)
+                near[get_candidate_moves(game.board, self.radius)] = True
+                mask = mask & near
             return Leaf(node, path, planes=planes, mask=mask)
         finally:
             for _ in range(steps):
@@ -214,6 +234,8 @@ class PUCTAgent(Agent):
         simulations: int = DEFAULT_SIMULATIONS,
         c_puct: float = DEFAULT_C_PUCT,
         device: str = "cpu",
+        radius: int | None = DEFAULT_RADIUS,
+        fpu: float = DEFAULT_FPU,
     ) -> None:
         super().__init__()
         if evaluator is None:
@@ -224,12 +246,14 @@ class PUCTAgent(Agent):
         self.checkpoint = checkpoint
         self.simulations = simulations
         self.c_puct = c_puct
+        self.radius = radius
+        self.fpu = fpu
 
     def select_action(self, state: CaroGame, budget: float | None = None) -> int:
         """budget=None: `simulations` mô phỏng; budget=số: chạy theo giây."""
         start = time.perf_counter()
         game = state.clone()
-        tree = PUCTTree(game.current_player, self.c_puct)
+        tree = PUCTTree(game.current_player, self.c_puct, radius=self.radius, fpu=self.fpu)
         deadline = None if budget is None else start + budget
         sims = run_search(tree, game, self.evaluator, self.simulations, deadline)
         root = tree.root
