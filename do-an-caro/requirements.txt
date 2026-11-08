@@ -5,3 +5,6 @@ pyyaml>=6.0
 # Phân tích log arena (notebook analysis/arena_report.ipynb)
 pandas>=2.0
 matplotlib>=3.7
+
+# Giao diện demo (ui/)
+pygame>=2.5.0
