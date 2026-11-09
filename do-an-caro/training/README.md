@@ -56,14 +56,60 @@ Dữ liệu được lưu trong thư mục `data/` (đã nằm trong `.gitignore
 3. **Mặt phẳng 2:** Nước vừa đi cuối cùng ($1.0$ tại `last_move`, $0.0$ nơi khác).
 4. **Mặt phẳng 3:** Lượt đi ($1.0$ nếu là Đen/X, $0.0$ nếu là Trắng/O).
 
-## 3. Sử dụng `CaroDataset` trong huấn luyện (Issue #10)
+## 3. Huấn luyện Supervised Policy-Value Network – Cấp 5 (Issue #10)
+
+### Nguyên lý thiết kế (Proposal mục 4–5):
+- **Kiến trúc:** `PolicyValueNet(blocks=6, channels=64, size=11)` hai đầu:
+  - Đầu Policy: 121 logits, mask $-\infty$ ô đã có quân rồi softmax.
+  - Đầu Value: $v \in [-1, 1]$ qua tanh, ước lượng kết quả theo góc nhìn người đến lượt.
+- **Hàm mất mát:** $\text{Loss} = \text{Cross-Entropy}(\text{policy}) + \text{MSE}(\text{value}) + L_2\text{-regularization}$.
+- **Tối ưu:** Adam, lr $10^{-3}$, batch size 256, tăng cường dữ liệu bằng 8 phép đối xứng ngẫu nhiên khi train.
+- **Early Stopping & Checkpoint:** Theo dõi `val_loss`, tự động dừng sớm nếu không cải thiện sau `patience` epochs; lưu checkpoint `best.pt` và `latest.pt`.
+- **Tác tử Cấp 5:** `SupervisedPolicyValueNetworkAgent` (alias `SLAgent`, `PolicyAgent` trong [`agents/supervised_policy_value_network_agent.py`](../agents/supervised_policy_value_network_agent.py)), chơi bằng **argmax policy** (chọn ô có xác suất cao nhất trong các ô hợp lệ).
+
+### Lệnh chạy huấn luyện
+
+Chạy thử nghiệm nhanh (Smoke test):
+```bash
+python -m training.train_supervised_policy_value_network configs/training/supervised-policy-value-network-smoke.yaml
+```
+
+Chạy huấn luyện chính thức:
+```bash
+# Huấn luyện trên GPU (nếu có) hoặc CPU
+python -m training.train_supervised_policy_value_network configs/training/supervised-policy-value-network.yaml --data data/dataset_sl.npz --device auto
+
+# Chạy tiếp từ checkpoint nếu bị ngắt:
+python -m training.train_supervised_policy_value_network configs/training/supervised-policy-value-network.yaml --resume checkpoints/supervised-policy-value-network/latest.pt
+```
+
+### Chạy trên Google Colab GPU T4
+Mở notebook [`training/supervised-policy-value-network-colab.ipynb`](supervised-policy-value-network-colab.ipynb):
+1. Vào **Runtime → Change runtime type → T4 GPU**.
+2. Chạy lần lượt các ô: tự động mount Drive, kéo mã nguồn từ GitHub, tải/sinh dữ liệu, train bằng GPU T4, vẽ biểu đồ Loss/Accuracy và chạy thử nghiệm tác tử Cấp 5.
+3. Checkpoint được lưu tự động về Google Drive tại `/content/drive/MyDrive/caro/supervised-policy-value-network`.
+
+### Sử dụng Tác tử Cấp 5 trong Arena & Mã nguồn
 
 ```python
-from training.dataset import CaroDataset
+from agents import SupervisedPolicyValueNetworkAgent
+from game.game import CaroGame
 
-# Nạp tập train
-train_dataset = CaroDataset.from_file("data/dataset_sl.npz", split="train", augment=True)
+# Khởi tạo tác tử với checkpoint
+agent = SupervisedPolicyValueNetworkAgent(checkpoint="checkpoints/supervised-policy-value-network/best.pt", device="auto")
 
-# Tương thích với PyTorch DataLoader khi có torch:
-# loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
+# Chọn nước đi (argmax policy)
+game = CaroGame()
+action = agent.select_action(game)
 ```
+
+Cấu hình trong giải đấu Arena (`configs/arena/*.yaml`):
+```yaml
+agents:
+  spvn:
+    type: supervised_policy_value_network
+    params:
+      checkpoint: checkpoints/supervised-policy-value-network/best.pt
+      device: auto
+```
+

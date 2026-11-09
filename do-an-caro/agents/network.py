@@ -118,6 +118,10 @@ class NetEvaluator:
         priors = masked_softmax(logits.float().cpu().numpy(), masks)
         return priors, values.float().cpu().numpy()
 
+    def predict_batch(self, planes: np.ndarray, masks: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Dự đoán cho một batch thế cờ (planes (N,4,S,S), masks (N,S*S) bool)."""
+        return self.evaluate(planes, masks)
+
     def predict(self, game: CaroGame) -> tuple[np.ndarray, float]:
         """Xác suất 121 ô (đã mask) và value của một ván, theo góc nhìn người đến lượt."""
         planes, mask = encode_game(game)
@@ -127,8 +131,18 @@ class NetEvaluator:
 
 # ---------------------------------------------------------------- checkpoint
 
-def save_checkpoint(path: str | Path, model: PolicyValueNet, **extra: Any) -> Path:
-    """Lưu {"model_state", "config", "engine_version", ...}; ghi file tạm rồi đổi tên để không hỏng khi bị ngắt."""
+def save_checkpoint(
+    path: str | Path,
+    model: PolicyValueNet,
+    epoch: int | None = None,
+    val_metrics: dict[str, Any] | None = None,
+    seed: int | None = None,
+    **extra: Any,
+) -> Path:
+    """Lưu {"model_state", "config", "epoch", "val_metrics", "seed", "engine_version", ...}.
+
+    Ghi file tạm rồi đổi tên nguyên tử để không hỏng checkpoint khi bị ngắt.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -136,6 +150,9 @@ def save_checkpoint(path: str | Path, model: PolicyValueNet, **extra: Any) -> Pa
         "model_state": {k: v.detach().cpu() for k, v in model.state_dict().items()},
         "config": dict(model.config),
         "engine_version": ENGINE_VERSION,
+        "epoch": epoch,
+        "val_metrics": val_metrics,
+        "seed": seed,
         **extra,
     }
     torch.save(payload, tmp)
@@ -151,6 +168,11 @@ def load_checkpoint(path: str | Path, device: str | torch.device = "cpu") -> tup
     model.to(device).eval()
     meta = {k: v for k, v in payload.items() if k != "model_state"}
     return model, meta
+
+
+def load_network(path: str | Path, device: str | torch.device = "cpu") -> tuple[PolicyValueNet, dict[str, Any]]:
+    """Tải mạng và metadata từ checkpoint (alias của load_checkpoint theo chuẩn issue #10)."""
+    return load_checkpoint(path, device)
 
 
 def load_evaluator(path: str | Path, device: str = "auto") -> NetEvaluator:
