@@ -61,3 +61,29 @@ số nút / số mô phỏng trung bình, Elo Bradley-Terry kèm khoảng tin c�
 
 Notebook `analysis/arena_report.ipynb` vẽ các bảng và hình trên; đổi `LOG_PATH` rồi Run All,
 hình lưu vào `analysis/figures/`.
+
+## 5. Cấp 7 và RQ2 (issue #13)
+
+Cấp 7 (AlphaGo-inspired) là `PUCTAgent` (`type: puct`) dùng **mạng cấp 5** đã huấn luyện:
+policy của mạng làm xác suất prior P, value của mạng thay rollout khi đánh giá lá.
+Mạng giữ nguyên, không có vòng lặp self-play cập nhật mạng như cấp 8.
+
+```yaml
+cap7:
+  type: puct
+  params: {checkpoint: checkpoints/level5/best.pt, simulations: 400, device: cpu}
+```
+
+`configs/arena/rq2.yaml` trả lời RQ2: ở cùng 400 / 800 / 1.600 mô phỏng, so PUCT + mạng cấp 5
+với policy-only (cấp 5, argmax policy) và MCTS thuần (cấp 4). Mỗi mức 3 cặp, mỗi cặp 200 ván,
+chế độ B (so theo số mô phỏng; thời gian mỗi nước vẫn ghi trong log).
+
+```bash
+# Cần checkpoints/level5/best.pt (tải từ Drive MyDrive/caro/level5/best.pt)
+python -m arena.tournament configs/arena/rq2.yaml --limit 20   # chạy thử
+python -m arena.tournament configs/arena/rq2.yaml              # chạy đủ 1.800 ván
+python -m analysis.summarize logs/rq2_puct.jsonl --out bang_rq2.md
+```
+
+Giả thuyết trong proposal: PUCT + mạng > MCTS thuần > policy-only. Khi có mạng cấp 6 (#11),
+bỏ chú thích `puct_rl_400` và thêm cặp `[puct_rl_400, puct_400]` vào `pairs` để so PUCT dùng mạng cấp 5 với mạng cấp 6.
