@@ -1,0 +1,62 @@
+# RQ2 – Cấp 7 (AlphaGo-inspired, issue #13): kết hợp mạng policy-value với PUCT có mạnh hơn
+# policy-only và MCTS thuần ở cùng số mô phỏng không? (proposal mục 2 và ablation 5)
+#   policy : cấp 5, argmax policy, 1 lần suy luận, không tìm kiếm
+#   puct_N : cấp 7, PUCT N mô phỏng, prior = policy và giá trị lá = value của CÙNG mạng cấp 5;
+#            không rollout, không vòng lặp cập nhật mạng (khác cấp 8)
+#   mcts_N : cấp 4, MCTS-UCT thuần N mô phỏng, rollout ngẫu nhiên
+# Giả thuyết: puct_N > mcts_N > policy.
+#
+# Chế độ B (budget=None): so theo số mô phỏng, không theo thời gian. Thời gian mỗi nước vẫn
+# được ghi trong log để báo cáo chi phí.
+# Cần checkpoints/level5/best.pt (tải từ Drive MyDrive/caro/level5/best.pt).
+#
+# python -m arena.tournament configs/arena/rq2.yaml --limit 20   # chạy thử 20 ván
+# python -m arena.tournament configs/arena/rq2.yaml              # chạy đủ (bị ngắt thì chạy lại)
+# python -m analysis.summarize logs/rq2_puct.jsonl --out bang_rq2.md
+name: rq2_puct
+mode: B
+size: 11
+rule: vietnam
+openings_file: configs/openings.json
+num_openings: 100        # 100 khai cuộc x 2 lượt đổi bên = 200 ván/cặp (proposal: 200 ván/mức)
+seeds: [0]               # 1 seed cho kịp thời gian; thêm 1, 2 nếu còn giờ (chỉ cặp có MCTS chạy thêm)
+workers: 4
+
+agents:
+  policy:
+    type: sl
+    params: {checkpoint: checkpoints/level5/best.pt, device: cpu}
+  puct_400:
+    type: puct
+    params: {checkpoint: checkpoints/level5/best.pt, simulations: 400, device: cpu}
+  puct_800:
+    type: puct
+    params: {checkpoint: checkpoints/level5/best.pt, simulations: 800, device: cpu}
+  puct_1600:
+    type: puct
+    params: {checkpoint: checkpoints/level5/best.pt, simulations: 1600, device: cpu}
+  mcts_400:
+    type: mcts
+    params: {simulations: 400}
+  mcts_800:
+    type: mcts
+    params: {simulations: 800}
+  mcts_1600:
+    type: mcts
+    params: {simulations: 1600}
+  # Khi cấp 6 xong (#11) có thể thêm PUCT dùng mạng cấp 6 để so với mạng cấp 5:
+  # puct_rl_400:
+  #   type: puct
+  #   params: {checkpoint: checkpoints/level6/best.pt, simulations: 400, device: cpu}
+
+# Mỗi mức mô phỏng: 3 cặp (PUCT–MCTS, PUCT–policy, MCTS–policy) -> 9 cặp x 200 ván.
+pairs:
+  - [puct_400, mcts_400]
+  - [puct_400, policy]
+  - [mcts_400, policy]
+  - [puct_800, mcts_800]
+  - [puct_800, policy]
+  - [mcts_800, policy]
+  - [puct_1600, mcts_1600]
+  - [puct_1600, policy]
+  - [mcts_1600, policy]
