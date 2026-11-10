@@ -3,7 +3,7 @@
 
 name: "caro_supervised_policy_value_network"
 data_path: "data/dataset_sl.npz"
-out_dir: "checkpoints/supervised-policy-value-network"
+out_dir: "checkpoints/level5"
 
 # Kiến trúc mạng PolicyValueNet dùng chung (Proposal mục 4–5)
 blocks: 6           # Cấp 5 dùng 6 khối residual

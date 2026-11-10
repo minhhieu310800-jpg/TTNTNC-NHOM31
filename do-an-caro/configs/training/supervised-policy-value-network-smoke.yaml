@@ -1,7 +1,7 @@
 # Cấu hình smoke test chạy nhanh (~2s) cho kiểm thử CI / pytest
 name: "caro_supervised_policy_value_network_smoke"
 data_path: "data/dataset_smoke.npz"
-out_dir: "checkpoints/supervised-policy-value-network-smoke"
+out_dir: "checkpoints/level5_smoke"
 
 blocks: 1
 channels: 8

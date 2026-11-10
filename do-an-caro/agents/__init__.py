@@ -6,11 +6,7 @@ from agents.heuristic_agent import HeuristicAgent
 from agents.mcts_agent import MCTSAgent
 from agents.puct_agent import PUCTAgent
 from agents.random_agent import RandomAgent
-from agents.supervised_policy_value_network_agent import (
-    PolicyAgent,
-    SLAgent,
-    SupervisedPolicyValueNetworkAgent,
-)
+from agents.supervised_policy_value_network_agent import SLAgent
 
 __all__ = [
     "Agent",
@@ -18,8 +14,6 @@ __all__ = [
     "HeuristicAgent",
     "AlphaBetaAgent",
     "MCTSAgent",
-    "PUCTAgent",
     "SLAgent",
-    "PolicyAgent",
-    "SupervisedPolicyValueNetworkAgent",
+    "PUCTAgent",
 ]

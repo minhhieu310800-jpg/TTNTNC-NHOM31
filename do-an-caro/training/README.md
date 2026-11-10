@@ -60,12 +60,12 @@ Dữ liệu được lưu trong thư mục `data/` (đã nằm trong `.gitignore
 
 ### Nguyên lý thiết kế (Proposal mục 4–5):
 - **Kiến trúc:** `PolicyValueNet(blocks=6, channels=64, size=11)` hai đầu:
-  - Đầu Policy: 121 logits, mask $-\infty$ ô đã có quân rồi softmax.
+  - Đầu Policy: 121 logits, mask ô bận (`-1e9` khi train, $-\infty$ khi suy luận) rồi softmax.
   - Đầu Value: $v \in [-1, 1]$ qua tanh, ước lượng kết quả theo góc nhìn người đến lượt.
 - **Hàm mất mát:** $\text{Loss} = \text{Cross-Entropy}(\text{policy}) + \text{MSE}(\text{value}) + L_2\text{-regularization}$.
 - **Tối ưu:** Adam, lr $10^{-3}$, batch size 256, tăng cường dữ liệu bằng 8 phép đối xứng ngẫu nhiên khi train.
-- **Early Stopping & Checkpoint:** Theo dõi `val_loss`, tự động dừng sớm nếu không cải thiện sau `patience` epochs; lưu checkpoint `best.pt` và `latest.pt`.
-- **Tác tử Cấp 5:** `SupervisedPolicyValueNetworkAgent` (alias `SLAgent`, `PolicyAgent` trong [`agents/supervised_policy_value_network_agent.py`](../agents/supervised_policy_value_network_agent.py)), chơi bằng **argmax policy** (chọn ô có xác suất cao nhất trong các ô hợp lệ).
+- **Early Stopping & Auto-resume:** Theo dõi `val_loss`, tự động dừng sớm nếu không cải thiện sau `patience` epochs; lưu checkpoint `best.pt` và `latest.pt` (kèm `best_val_loss`, `patience_counter`). Nếu `out_dir/latest.pt` đã có, lần chạy sau tự động tiếp tục mà không ghi đè `best.pt`.
+- **Tác tử Cấp 5:** `SLAgent` (trong [`agents/supervised_policy_value_network_agent.py`](../agents/supervised_policy_value_network_agent.py)), chơi bằng **argmax policy** (chọn ô có xác suất cao nhất trong các ô hợp lệ).
 
 ### Lệnh chạy huấn luyện
 
@@ -76,27 +76,26 @@ python -m training.train_supervised_policy_value_network configs/training/superv
 
 Chạy huấn luyện chính thức:
 ```bash
-# Huấn luyện trên GPU (nếu có) hoặc CPU
+# Huấn luyện trên GPU (nếu có) hoặc CPU; tự động chạy tiếp nếu đã có checkpoints/level5/latest.pt
 python -m training.train_supervised_policy_value_network configs/training/supervised-policy-value-network.yaml --data data/dataset_sl.npz --device auto
 
-# Chạy tiếp từ checkpoint nếu bị ngắt:
-python -m training.train_supervised_policy_value_network configs/training/supervised-policy-value-network.yaml --resume checkpoints/supervised-policy-value-network/latest.pt
+# Huấn luyện lại từ đầu (bỏ qua latest.pt):
+python -m training.train_supervised_policy_value_network configs/training/supervised-policy-value-network.yaml --no-resume
 ```
 
 ### Chạy trên Google Colab GPU T4
-Mở notebook [`training/supervised-policy-value-network-colab.ipynb`](supervised-policy-value-network-colab.ipynb):
-1. Vào **Runtime → Change runtime type → T4 GPU**.
-2. Chạy lần lượt các ô: tự động mount Drive, kéo mã nguồn từ GitHub, tải/sinh dữ liệu, train bằng GPU T4, vẽ biểu đồ Loss/Accuracy và chạy thử nghiệm tác tử Cấp 5.
-3. Checkpoint được lưu tự động về Google Drive tại `/content/drive/MyDrive/caro/supervised-policy-value-network`.
+1. Sinh đủ 20.000 ván dữ liệu trên máy nhiều nhân rồi tải file `dataset_sl.npz` lên Google Drive tại `/content/drive/MyDrive/caro/data/dataset_sl.npz`.
+2. Mở notebook [`training/supervised-policy-value-network-colab.ipynb`](supervised-policy-value-network-colab.ipynb), chọn **Runtime → Change runtime type → T4 GPU**.
+3. Chạy lần lượt các ô. Checkpoint được lưu tự động về Google Drive tại `/content/drive/MyDrive/caro/level5`.
 
 ### Sử dụng Tác tử Cấp 5 trong Arena & Mã nguồn
 
 ```python
-from agents import SupervisedPolicyValueNetworkAgent
+from agents import SLAgent
 from game.game import CaroGame
 
 # Khởi tạo tác tử với checkpoint
-agent = SupervisedPolicyValueNetworkAgent(checkpoint="checkpoints/supervised-policy-value-network/best.pt", device="auto")
+agent = SLAgent(checkpoint="checkpoints/level5/best.pt", device="auto")
 
 # Chọn nước đi (argmax policy)
 game = CaroGame()
@@ -106,10 +105,10 @@ action = agent.select_action(game)
 Cấu hình trong giải đấu Arena (`configs/arena/*.yaml`):
 ```yaml
 agents:
-  spvn:
-    type: supervised_policy_value_network
+  sl:
+    type: sl
     params:
-      checkpoint: checkpoints/supervised-policy-value-network/best.pt
+      checkpoint: checkpoints/level5/best.pt
       device: auto
 ```
 

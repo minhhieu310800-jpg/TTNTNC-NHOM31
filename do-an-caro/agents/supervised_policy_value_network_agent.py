@@ -15,20 +15,11 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from agents.base import Agent
-from agents.network import NetEvaluator, load_evaluator
+from agents.network import NetEvaluator
+from agents.puct_agent import cached_evaluator
 
 if TYPE_CHECKING:
     from game.game import CaroGame
-
-_EVALUATOR_CACHE: dict[tuple[str, str], NetEvaluator] = {}
-
-
-def cached_evaluator(path: str | Path, device: str = "auto") -> NetEvaluator:
-    """Tái sử dụng evaluator của một checkpoint để không nạp lại nhiều lần."""
-    key = (str(Path(path).resolve()), str(device))
-    if key not in _EVALUATOR_CACHE:
-        _EVALUATOR_CACHE[key] = load_evaluator(path, device)
-    return _EVALUATOR_CACHE[key]
 
 
 class SLAgent(Agent):
@@ -48,7 +39,7 @@ class SLAgent(Agent):
         if evaluator is None:
             if checkpoint is None:
                 raise ValueError("Cần cung cấp `checkpoint` hoặc `evaluator`.")
-            evaluator = cached_evaluator(checkpoint, device)
+            evaluator = cached_evaluator(str(checkpoint), device)
         self.evaluator = evaluator
         self.checkpoint = str(checkpoint) if checkpoint else None
         self.device = device
@@ -61,8 +52,8 @@ class SLAgent(Agent):
 
         Args:
             state: Trạng thái bàn cờ hiện tại.
-            budget: Thời gian suy nghĩ tối đa (giây). Mạng SL suy luận nhanh (O(1) forward pass)
-                    nên thường xong trong vài mili-giây.
+            budget: Thời gian suy nghĩ tối đa (giây). Mạng SL suy luận qua một lượt
+                    forward pass nên hoàn thành trong vài mili-giây.
 
         Returns:
             Chỉ số ô 0..120 hợp lệ.
@@ -71,24 +62,17 @@ class SLAgent(Agent):
         legals = state.legal_actions()
         if not legals:
             raise ValueError("Không còn nước đi hợp lệ.")
-        if len(legals) == 1:
-            return legals[0]
 
-        # Dự đoán policy (đã mask ô bận và softmax) cùng value
+        # Dự đoán policy (đã mask ô bận và softmax) cùng value; chạy đều cả khi còn 1 nước để cập nhật last_stats
         probs, value = self.evaluator.predict(state)
 
         if self.temperature <= 1e-6:
-            # Chế độ chuẩn: argmax policy
             best_action = int(np.argmax(probs))
-            # Kiểm tra phòng vệ: nếu vì lý do số học best_action không nằm trong legal_actions
             if best_action not in legals:
-                legal_probs = [(a, float(probs[a])) for a in legals]
-                best_action = max(legal_probs, key=lambda x: x[1])[0]
+                best_action = max(legals, key=lambda a: float(probs[a]))
             chosen_action = best_action
         else:
-            # Chế độ lấy mẫu theo nhiệt độ (thử nghiệm hoặc phân tích)
             legal_probs = np.array([probs[a] for a in legals], dtype=np.float64)
-            # Tránh chia cho 0 hoặc tràn số mũ
             temp = max(self.temperature, 1e-3)
             logits = np.log(np.maximum(legal_probs, 1e-12)) / temp
             logits -= np.max(logits)
@@ -104,9 +88,3 @@ class SLAgent(Agent):
             "time_used": time.perf_counter() - start,
         }
         return chosen_action
-
-
-# Alias cho lớp tác tử SL / Supervised Policy-Value Network theo tên đầy đủ và tên chiến lược
-SupervisedPolicyValueNetworkAgent = SLAgent
-PolicyAgent = SLAgent
-
