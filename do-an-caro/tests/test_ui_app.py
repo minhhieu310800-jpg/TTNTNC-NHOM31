@@ -45,8 +45,9 @@ def test_menu_builds_and_draws(app, monkeypatch, tmp_path):
     import ui.levels as levels
     from agents.random_agent import RandomAgent
 
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(levels, "CARO_ROOT", tmp_path)
-    monkeypatch.setattr(levels, "AGENT_TYPES", {**levels.AGENT_TYPES, "puct": RandomAgent})
+    monkeypatch.setitem(levels.AGENT_TYPES, "puct", RandomAgent)
     app._build_menu()
     app.draw()
     assert app.state == "menu"
@@ -58,8 +59,9 @@ def test_start_game_handles_missing_checkpoint_without_crashing(app, monkeypatch
     import ui.levels as levels
     from agents.random_agent import RandomAgent
 
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(levels, "CARO_ROOT", tmp_path)
-    monkeypatch.setattr(levels, "AGENT_TYPES", {**levels.AGENT_TYPES, "puct": RandomAgent})
+    monkeypatch.setitem(levels.AGENT_TYPES, "puct", RandomAgent)
     app.cfg.ai_level = 7  # PUCT đã đăng ký nhưng không có file checkpoint
     app.start_game()
     assert app.state == "menu"
@@ -128,6 +130,11 @@ def test_ai_vs_ai_runs_pause_and_step(app):
         app.update(0.05)
         time.sleep(0.02)
     assert len(app.session.moves) == count  # đang tạm dừng
+    # khi đang có luồng AI đang chạy dở thì bấm Đi 1 nước bị bỏ qua
+    app.pending_token = 999
+    app.do_step_once()
+    assert not app.step_once
+    app.pending_token = None
     app.do_step_once()
     run_until(app, lambda: len(app.session.moves) == count + 1)
     app.draw()

@@ -19,7 +19,7 @@ python -m ui.app
 - **Máy – Máy:** chọn cấp AI cho X và O, ván tự chạy; có **Tạm dừng / Tiếp tục** và **Đi 1 nước**.
 - **Cấp AI 1–8:** cấp chưa sẵn sàng bị làm mờ ("chưa có"). Các cấp mạng học sâu 5–8 (`sl`, `rl`, `puct`) tự bật khi:
   1. Tác tử tương ứng đã được đăng ký trong `AGENT_TYPES` của `arena/agent_factory.py`, và
-  2. File checkpoint được cấu hình trong `LEVELS` (`ui/levels.py`) tồn tại trên đĩa (ví dụ `checkpoints/supervised-policy-value-network/best.pt`, `checkpoints/rl_selfplay/best.pt`, `checkpoints/alphazero2/best.pt`).
+  2. File checkpoint được cấu hình trong `LEVELS` (`ui/levels.py`) tồn tại trên đĩa (`checkpoints/level5/best.pt`, `checkpoints/level6/best.pt`, `checkpoints/alphazero2/best.pt`).
 - **Thời gian suy nghĩ:** 0,1 / 0,5 / 1,0 giây mỗi nước (tham số `budget` của tác tử).
 - **AI cân nhắc:** ô vàng là nước vừa đi; khung bên phải hiện `last_stats` của nước AI gần nhất
   (số nút, độ sâu, số mô phỏng, điểm, thời gian...).

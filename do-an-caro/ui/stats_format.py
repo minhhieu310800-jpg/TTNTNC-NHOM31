@@ -17,6 +17,8 @@ STAT_LABELS: Final[dict[str, str]] = {
     "value": "Giá trị dự đoán",
     "prior_best": "Xác suất prior nước chọn",
     "policy_prob": "Xác suất policy",
+    "action": "Ô chọn",
+    "temperature": "Nhiệt độ",
     "rule": "Luật heuristic dùng",
     "time_used": "Thời gian suy nghĩ",
 }
@@ -34,6 +36,8 @@ def _format_value(key: str, value: Any) -> str:
     if isinstance(value, int):
         return f"{value:,}".replace(",", ".")
     if isinstance(value, float):
+        if abs(value) < 5e-3:
+            value = 0.0
         return f"{value:,.2f}".replace(",", " ")
     return str(value)
 

@@ -50,12 +50,9 @@ def test_level_requires_checkpoint_and_turns_on_when_present(monkeypatch, tmp_pa
             super().__init__(seed=seed)
             self.checkpoint = checkpoint
 
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(levels, "CARO_ROOT", tmp_path)
-    monkeypatch.setattr(
-        levels,
-        "AGENT_TYPES",
-        {**levels.AGENT_TYPES, get_level(7).agent_type: DummyCheckpointAgent},
-    )
+    monkeypatch.setitem(levels.AGENT_TYPES, get_level(7).agent_type, DummyCheckpointAgent)
     # Dù "puct" đã có trong AGENT_TYPES, thiếu file checkpoint thì vẫn báo chưa sẵn sàng
     assert not levels.is_available(7)
     with pytest.raises(ValueError, match="checkpoint"):
@@ -123,10 +120,14 @@ def test_undo_when_game_over_after_human_win():
 
 def test_undo_when_ai_moves_first_stops_at_start():
     s = GameSession(bot(), human())
-    s.play(60)  # AI đi trước
-    s.play(61)  # người
+    s.play(60)  # AI đi trước, người chưa đi nước nào
+    assert not s.can_undo()
+    assert s.undo() == 0
+    assert s.game.move_count == 1 and s.is_human_turn
+    s.play(61)  # người đi nước đầu tiên
+    assert s.can_undo()
     assert s.undo() == 1  # chỉ bỏ nước của người, về lượt người
-    assert s.game.move_count == 1
+    assert s.game.move_count == 1 and not s.can_undo()
 
 
 def test_no_undo_for_ai_vs_ai():
@@ -219,12 +220,24 @@ def test_format_stats_alphabeta():
 
 def test_format_stats_mcts_and_none():
     lines = format_stats(
-        {"sims": 1600, "win_rate": 0.5, "best_visits": None, "value": 0.25, "prior_best": 0.125}
+        {
+            "sims": 1600,
+            "win_rate": 0.5,
+            "best_visits": None,
+            "value": 0.25,
+            "prior_best": 0.125,
+            "score": -0.0001,
+            "action": 60,
+            "temperature": 0.0,
+        }
     )
     assert "Tỷ lệ thắng ước tính: 50.0%" in lines
     assert "Lượt thăm nước tốt nhất: không có" in lines
     assert "Giá trị dự đoán: 0.25" in lines
     assert "Xác suất prior nước chọn: 12.5%" in lines
+    assert "Điểm đánh giá: 0.00" in lines
+    assert "Ô chọn: 60" in lines
+    assert "Nhiệt độ: 0.00" in lines
 
 
 def test_format_stats_empty_uses_elapsed():

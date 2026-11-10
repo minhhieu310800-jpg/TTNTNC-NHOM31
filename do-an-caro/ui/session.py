@@ -106,8 +106,8 @@ class GameSession:
         return record
 
     def can_undo(self) -> bool:
-        """Chỉ cho undo khi có người chơi và còn nước để thu hồi."""
-        return self.has_human and bool(self.moves)
+        """Chỉ cho undo khi có người chơi và người chơi đã đi ít nhất một nước."""
+        return self.has_human and any(m.by_human for m in self.moves)
 
     def undo(self) -> int:
         """Thu hồi nước đi cho đến khi lại đến lượt người; trả về số nước đã bỏ."""

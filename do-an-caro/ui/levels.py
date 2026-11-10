@@ -9,39 +9,12 @@ cấp đó tự bật trên giao diện.
 
 from __future__ import annotations
 
-import inspect
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
 
 from agents.base import Agent
-
-try:
-    import arena.agent_factory as _factory
-    from arena.agent_factory import AGENT_TYPES, AgentSpec, build_agent
-except ModuleNotFoundError:
-    _factory = None  # type: ignore[assignment]
-    from agents import AlphaBetaAgent, HeuristicAgent, MCTSAgent, RandomAgent
-
-    AGENT_TYPES: dict[str, type[Agent]] = {
-        "random": RandomAgent,
-        "heuristic": HeuristicAgent,
-        "alphabeta": AlphaBetaAgent,
-        "mcts": MCTSAgent,
-    }
-
-    @dataclass(frozen=True)
-    class AgentSpec:  # type: ignore[no-redef]
-        label: str
-        type: str
-        params: dict[str, Any] = field(default_factory=dict)
-
-    def build_agent(spec: AgentSpec, seed: int | None = None) -> Agent:
-        cls = AGENT_TYPES[spec.type]
-        kwargs = dict(spec.params)
-        if seed is not None and "seed" in inspect.signature(cls.__init__).parameters:
-            kwargs["seed"] = seed
-        return cls(**kwargs)
+from arena.agent_factory import AGENT_TYPES, AgentSpec, build_agent
 
 CARO_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
 
@@ -65,19 +38,19 @@ LEVELS: Final[tuple[LevelInfo, ...]] = (
         5,
         "Cấp 5 - Mạng policy-value",
         "sl",
-        {"checkpoint": "checkpoints/supervised-policy-value-network/best.pt"},
+        {"checkpoint": "checkpoints/level5/best.pt"},
     ),
     LevelInfo(
         6,
         "Cấp 6 - RL self-play",
         "rl",
-        {"checkpoint": "checkpoints/rl_selfplay/best.pt"},
+        {"checkpoint": "checkpoints/level6/best.pt"},
     ),
     LevelInfo(
         7,
         "Cấp 7 - PUCT",
         "puct",
-        {"checkpoint": "checkpoints/supervised-policy-value-network/best.pt"},
+        {"checkpoint": "checkpoints/level5/best.pt"},
     ),
     LevelInfo(
         8,
@@ -93,14 +66,16 @@ DEFAULT_BUDGET: Final[float] = 0.5
 
 
 def _resolve_checkpoint(checkpoint: str | Path) -> Path:
-    """Tìm đường dẫn checkpoint theo thư mục hiện hành hoặc thư mục gốc ``do-an-caro``."""
+    """Tìm đường dẫn checkpoint theo thư mục gốc ``do-an-caro`` trước, rồi mới tới thư mục hiện hành."""
     path = Path(checkpoint)
-    if path.is_file():
+    if path.is_absolute():
         return path
     candidate = CARO_ROOT / path
     if candidate.is_file():
         return candidate
-    return path
+    if path.is_file():
+        return path
+    return candidate
 
 
 def get_level(level: int) -> LevelInfo:
@@ -133,12 +108,6 @@ def create_agent(level: int, seed: int | None = None) -> Agent:
         if not resolved.is_file():
             raise ValueError(f"{info.title} thiếu file checkpoint: {params['checkpoint']}")
         params["checkpoint"] = str(resolved)
-    cls = AGENT_TYPES[info.agent_type]
-    if _factory is not None and _factory.AGENT_TYPES.get(info.agent_type) is cls:
-        spec = AgentSpec(label=info.title, type=info.agent_type, params=params)
-        return build_agent(spec, seed=seed)
-    kwargs = dict(params)
-    if seed is not None and "seed" in inspect.signature(cls.__init__).parameters:
-        kwargs["seed"] = seed
-    return cls(**kwargs)
+    spec = AgentSpec(label=info.title, type=info.agent_type, params=params)
+    return build_agent(spec, seed=seed)
 

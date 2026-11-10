@@ -182,8 +182,8 @@ class App:
             if not participant.is_human and participant.level is not None:
                 try:
                     participant.agent = create_agent(participant.level)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    self.message = f"Không tạo lại được tác tử: {exc}"
 
     def start_game(self) -> None:
         """Tạo ván mới theo cấu hình menu và chuyển sang màn hình chơi."""
@@ -241,7 +241,8 @@ class App:
         self._build_game()
 
     def do_step_once(self) -> None:
-        self.step_once = True
+        if self.pending_token is None:
+            self.step_once = True
 
     def toggle_replay(self) -> None:
         assert self.session is not None
@@ -274,7 +275,7 @@ class App:
             self._add(x, y + 44, half, 34, "Tiếp tục" if self.paused else "Tạm dừng", self.toggle_pause,
                       enabled=not s.is_over and self.replay is None)
             self._add(x + half + 10, y + 44, half, 34, "Đi 1 nước", self.do_step_once,
-                      enabled=self.paused and not s.is_over and self.replay is None)
+                      enabled=self.paused and not s.is_over and self.replay is None and self.pending_token is None)
         self._add(x, y + 88, w, 34, "Thoát xem lại" if self.replay else "Xem lại ván",
                   self.toggle_replay, enabled=bool(s.moves), selected=self.replay is not None)
         if self.replay is not None:
@@ -355,6 +356,8 @@ class App:
         agent = s.current.agent
         assert agent is not None
         self.pending_token = self.worker.start(agent, s.game, s.budget)
+        if not s.has_human and self.paused:
+            self._build_game()
 
     def _apply_ai_result(self, result) -> None:
         s = self.session
@@ -506,8 +509,11 @@ class App:
                 self._text("Nước của người chơi (không có thông số).", (px, py + 4), self.font_small, COLOR_MUTED)
             else:
                 py += 4
+                max_py = y + 310 - 18
                 for line in format_stats(record.stats, record.elapsed):
                     for sub in wrap_text(self.font_small, line, PANEL_W - 24):
+                        if py > max_py:
+                            break
                         py += self._text(sub, (px, py), self.font_small) + 1
         if self.message:
             for i, line in enumerate(wrap_text(self.font_small, self.message, PANEL_W)):
@@ -530,6 +536,7 @@ def main() -> None:
         app.update(dt)
         app.draw()
         pygame.display.flip()
+    app.worker.cancel()
     pygame.quit()
 
 
