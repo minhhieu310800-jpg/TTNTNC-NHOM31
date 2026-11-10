@@ -10,6 +10,7 @@ vẽ và nhận sự kiện chuột/bàn phím.
 
 from __future__ import annotations
 
+import random
 import time
 from dataclasses import dataclass
 from typing import Callable, Final
@@ -173,14 +174,30 @@ class App:
     def _participant(self, level: int) -> Participant:
         return Participant(level=level, agent=create_agent(level))
 
+    def _recreate_ai_agents(self) -> None:
+        """Khởi tạo lại tác tử AI để tránh dùng chung trạng thái với luồng cũ đã hủy."""
+        if self.session is None:
+            return
+        for participant in self.session.participants.values():
+            if not participant.is_human and participant.level is not None:
+                try:
+                    participant.agent = create_agent(participant.level)
+                except Exception:
+                    pass
+
     def start_game(self) -> None:
         """Tạo ván mới theo cấu hình menu và chuyển sang màn hình chơi."""
         cfg = self.cfg
-        if cfg.mode == MODE_HUMAN_VS_AI:
-            ai = self._participant(cfg.ai_level)
-            black, white = (Participant(), ai) if cfg.human_side == BLACK else (ai, Participant())
-        else:
-            black, white = self._participant(cfg.level_x), self._participant(cfg.level_o)
+        try:
+            if cfg.mode == MODE_HUMAN_VS_AI:
+                ai = self._participant(cfg.ai_level)
+                black, white = (Participant(), ai) if cfg.human_side == BLACK else (ai, Participant())
+            else:
+                black, white = self._participant(cfg.level_x), self._participant(cfg.level_o)
+        except Exception as exc:
+            self.message = f"Không tạo được tác tử: {exc}"
+            self._build_menu()
+            return
         self.session = GameSession(black, white, budget=cfg.budget, size=DEFAULT_BOARD_SIZE)
         self._enter_game()
 
@@ -198,6 +215,7 @@ class App:
     def new_game(self) -> None:
         assert self.session is not None
         self.worker.cancel()
+        self._recreate_ai_agents()
         self.session.reset()
         self._enter_game()
 
@@ -206,12 +224,14 @@ class App:
         self.pending_token = None
         self.session = None
         self.replay = None
+        self.message = ""
         self._build_menu()
 
     def undo(self) -> None:
         assert self.session is not None
         self.worker.cancel()
         self.pending_token = None
+        self._recreate_ai_agents()
         self.session.undo()
         self.message = "Đã hoàn tác."
         self._build_game()
@@ -345,7 +365,7 @@ class App:
         if result.error is not None or action not in legal:
             self.message = f"Tác tử lỗi, đi tạm ô ngẫu nhiên ({result.error or 'nước không hợp lệ'})."
             stats = {"lỗi": result.error or "nước không hợp lệ"}
-            action = legal[len(legal) // 2]
+            action = random.choice(legal)
         s.play(action, stats=stats, elapsed=result.elapsed)
         self.last_move_clock = time.time()
         self._build_game()
@@ -386,6 +406,9 @@ class App:
         self._text("Chế độ chơi", (50, 98), self.font_h)
         for title, x, y in self._title_at:
             self._text(title, (x, y), self.font_h)
+        if self.message:
+            for i, line in enumerate(wrap_text(self.font_small, self.message, 240)):
+                self._text(line, (720, 585 + i * 20), self.font_small, COLOR_X)
         self._text("Luật Việt Nam: đủ 5 quân, không bị chặn hai đầu.", (50, 640), self.font_small, COLOR_MUTED)
 
     def _draw_board(self, game, highlight: list[int], last_move: int | None) -> None:

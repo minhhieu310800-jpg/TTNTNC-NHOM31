@@ -14,6 +14,9 @@ STAT_LABELS: Final[dict[str, str]] = {
     "sims": "Số mô phỏng",
     "best_visits": "Lượt thăm nước tốt nhất",
     "win_rate": "Tỷ lệ thắng ước tính",
+    "value": "Giá trị dự đoán",
+    "prior_best": "Xác suất prior nước chọn",
+    "policy_prob": "Xác suất policy",
     "rule": "Luật heuristic dùng",
     "time_used": "Thời gian suy nghĩ",
 }
@@ -22,7 +25,7 @@ STAT_LABELS: Final[dict[str, str]] = {
 def _format_value(key: str, value: Any) -> str:
     if value is None:
         return "không có"
-    if key == "win_rate" and isinstance(value, (int, float)):
+    if key in ("win_rate", "prior_best", "policy_prob") and isinstance(value, (int, float)):
         return f"{value * 100:.1f}%"
     if key == "time_used" and isinstance(value, (int, float)):
         return f"{value:.3f} giây"

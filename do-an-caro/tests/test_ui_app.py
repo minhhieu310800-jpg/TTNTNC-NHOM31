@@ -41,11 +41,31 @@ def run_until(app: App, condition, timeout: float = 15.0):
     raise AssertionError("Hết thời gian chờ")
 
 
-def test_menu_builds_and_draws(app):
+def test_menu_builds_and_draws(app, monkeypatch, tmp_path):
+    import ui.levels as levels
+    from agents.random_agent import RandomAgent
+
+    monkeypatch.setattr(levels, "CARO_ROOT", tmp_path)
+    monkeypatch.setattr(levels, "AGENT_TYPES", {**levels.AGENT_TYPES, "puct": RandomAgent})
+    app._build_menu()
     app.draw()
     assert app.state == "menu"
     unavailable = [b for b in app.buttons if "(chưa có)" in b.text]
     assert len(unavailable) == 4 and not any(b.enabled for b in unavailable)
+
+
+def test_start_game_handles_missing_checkpoint_without_crashing(app, monkeypatch, tmp_path):
+    import ui.levels as levels
+    from agents.random_agent import RandomAgent
+
+    monkeypatch.setattr(levels, "CARO_ROOT", tmp_path)
+    monkeypatch.setattr(levels, "AGENT_TYPES", {**levels.AGENT_TYPES, "puct": RandomAgent})
+    app.cfg.ai_level = 7  # PUCT đã đăng ký nhưng không có file checkpoint
+    app.start_game()
+    assert app.state == "menu"
+    assert app.session is None
+    assert "Không tạo được tác tử" in app.message
+    app.draw()
 
 
 def test_human_vs_ai_flow(app):
@@ -79,6 +99,18 @@ def test_undo_returns_to_human_turn(app):
     run_until(app, lambda: len(app.session.moves) == 2)
     app.undo()
     assert app.session.moves == [] and app.session.is_human_turn
+
+
+def test_undo_while_ai_thinking_recreates_agent(app):
+    app.cfg.ai_level = 1
+    app.start_game()
+    old_agent = app.session.participants[WHITE].agent
+    click(app, cell_center(5, 5))
+    app.update(0.05)  # kích hoạt luồng AI suy nghĩ
+    app.undo()
+    assert app.session.moves == [] and app.session.is_human_turn
+    assert app.pending_token is None
+    assert app.session.participants[WHITE].agent is not old_agent
 
 
 def test_ai_vs_ai_runs_pause_and_step(app):

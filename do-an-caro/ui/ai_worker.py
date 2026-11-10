@@ -30,29 +30,47 @@ class AIWorker:
         self._token = 0
         self._result: AIResult | None = None
         self._busy = False
+        self._thread: threading.Thread | None = None
 
     @property
     def busy(self) -> bool:
         return self._busy
 
+    def wait(self, timeout: float | None = 2.0) -> None:
+        """Đợi luồng suy nghĩ hiện tại kết thúc (nếu đang chạy)."""
+        with self._lock:
+            thread = self._thread
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=timeout)
+
     def start(self, agent: Agent, state: CaroGame, budget: float | None) -> int:
-        """Bắt đầu suy nghĩ trên bản sao của ``state``; trả về token của lượt này."""
+        """Bắt đầu suy nghĩ trên bản sao của ``state``; trả về token của lượt này.
+
+        Nếu luồng của lượt trước chưa thoát hẳn (ví dụ vừa bấm Hoàn tác), đợi luồng đó
+        kết thúc trước khi mở luồng mới để hai luồng không bao giờ chạy song song.
+        """
+        self.wait()
+        snapshot = state.clone()
         with self._lock:
             self._token += 1
             token = self._token
             self._result = None
             self._busy = True
-        snapshot = state.clone()
-        thread = threading.Thread(target=self._run, args=(token, agent, snapshot, budget), daemon=True)
+            thread = threading.Thread(
+                target=self._run, args=(token, agent, snapshot, budget), daemon=True
+            )
+            self._thread = thread
         thread.start()
         return token
 
-    def cancel(self) -> None:
-        """Bỏ kết quả của lượt đang chạy (luồng vẫn chạy nốt rồi tự kết thúc)."""
+    def cancel(self, wait: bool = False, timeout: float | None = 2.0) -> None:
+        """Bỏ kết quả của lượt đang chạy; tùy chọn đợi luồng nền kết thúc."""
         with self._lock:
             self._token += 1
             self._result = None
             self._busy = False
+        if wait:
+            self.wait(timeout=timeout)
 
     def poll(self) -> AIResult | None:
         """Lấy kết quả nếu đã xong (chỉ trả một lần)."""

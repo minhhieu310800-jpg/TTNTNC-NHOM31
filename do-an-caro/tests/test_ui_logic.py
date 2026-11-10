@@ -42,11 +42,35 @@ def test_unregistered_level_unavailable(monkeypatch):
         levels.create_agent(5)
 
 
-def test_level_turns_on_when_agent_registered(monkeypatch):
+def test_level_requires_checkpoint_and_turns_on_when_present(monkeypatch, tmp_path):
     import ui.levels as levels
 
-    monkeypatch.setattr(levels, "AGENT_TYPES", {**levels.AGENT_TYPES, get_level(5).agent_type: RandomAgent})
-    assert levels.is_available(5)
+    class DummyCheckpointAgent(RandomAgent):
+        def __init__(self, checkpoint: str, seed: int | None = None):
+            super().__init__(seed=seed)
+            self.checkpoint = checkpoint
+
+    monkeypatch.setattr(levels, "CARO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        levels,
+        "AGENT_TYPES",
+        {**levels.AGENT_TYPES, get_level(7).agent_type: DummyCheckpointAgent},
+    )
+    # Dù "puct" đã có trong AGENT_TYPES, thiếu file checkpoint thì vẫn báo chưa sẵn sàng
+    assert not levels.is_available(7)
+    with pytest.raises(ValueError, match="checkpoint"):
+        levels.create_agent(7)
+
+    # Khi file checkpoint tồn tại thì cấp 7 tự bật và tạo được tác tử
+    ckpt_rel = get_level(7).params["checkpoint"]
+    ckpt_file = tmp_path / ckpt_rel
+    ckpt_file.parent.mkdir(parents=True, exist_ok=True)
+    ckpt_file.write_bytes(b"dummy")
+
+    assert levels.is_available(7)
+    agent = levels.create_agent(7, seed=42)
+    assert isinstance(agent, DummyCheckpointAgent)
+    assert agent.checkpoint == str(ckpt_file)
 
 
 def test_get_level_invalid():
@@ -194,9 +218,13 @@ def test_format_stats_alphabeta():
 
 
 def test_format_stats_mcts_and_none():
-    lines = format_stats({"sims": 1600, "win_rate": 0.5, "best_visits": None})
+    lines = format_stats(
+        {"sims": 1600, "win_rate": 0.5, "best_visits": None, "value": 0.25, "prior_best": 0.125}
+    )
     assert "Tỷ lệ thắng ước tính: 50.0%" in lines
     assert "Lượt thăm nước tốt nhất: không có" in lines
+    assert "Giá trị dự đoán: 0.25" in lines
+    assert "Xác suất prior nước chọn: 12.5%" in lines
 
 
 def test_format_stats_empty_uses_elapsed():
@@ -253,3 +281,30 @@ def test_worker_reports_agent_error():
     w.start(Broken(seed=1), CaroGame(), None)
     res = wait(w)
     assert res.action is None and "hỏng" in res.error
+
+
+def test_worker_waits_for_cancelled_thread_before_starting_next():
+    active = 0
+    max_concurrent = 0
+
+    class SlowTracker(RandomAgent):
+        def select_action(self, state, budget=None):
+            nonlocal active, max_concurrent
+            active += 1
+            max_concurrent = max(max_concurrent, active)
+            try:
+                time.sleep(0.15)
+                return super().select_action(state, budget)
+            finally:
+                active -= 1
+
+    agent = SlowTracker(seed=1)
+    w = AIWorker()
+    w.start(agent, CaroGame(), None)
+    time.sleep(0.03)
+    w.cancel()
+    # Bắt đầu lượt mới ngay khi luồng cũ chưa kịp kết thúc
+    token2 = w.start(agent, CaroGame(), None)
+    res = wait(w)
+    assert res.token == token2
+    assert max_concurrent == 1
