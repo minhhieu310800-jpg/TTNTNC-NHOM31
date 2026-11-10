@@ -1,0 +1,32 @@
+# Smoke test cho RL Self-Play Actor-Critic (~1–2s trên CPU)
+name: "caro_rl_smoke"
+init_checkpoint: "checkpoints/level5_smoke/best.pt"
+out_dir: "checkpoints/level6_smoke"
+
+board_size: 11
+rule: "vietnam"
+
+episodes: 16
+episodes_per_round: 8
+rollout_batch_games: 4
+minibatch_size: 8
+
+lr: 0.0001
+weight_decay: 0.0001
+value_coef: 0.5
+entropy_coef: 0.01
+grad_clip: 1.0
+augment: true
+
+temperature: 1.0
+opponent_temperature: 0.5
+opening_min_moves: 2
+opening_max_moves: 4
+center_radius: 2
+
+max_pool_size: 5
+eval_games: 4
+openings_file: "configs/openings.json"
+
+device: "cpu"
+seed: 42
