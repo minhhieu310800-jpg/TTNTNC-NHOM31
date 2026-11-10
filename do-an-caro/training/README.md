@@ -118,7 +118,7 @@ agents:
 - **Khởi tạo:** Nạp trọng số mạng `PolicyValueNet(blocks=6, channels=64)` từ checkpoint Cấp 5 (`checkpoints/level5/best.pt`).
 - **Actor-Critic có baseline:** Phần thưởng cuối ván $z \in \{+1, -1, 0\}$ (0 ở các bước trung gian), advantage $A_t = z - V(s_t)$, mask ô bận (`-1e9`), exploration bằng lấy mẫu với nhiệt độ $\tau = 1.0$, thêm entropy bonus nhỏ và gradient clipping để ổn định chính sách.
 - **Pool đối thủ chống quên:** Luôn ghim bản neo Cấp 5 (SL) cùng các checkpoint lịch sử gần nhất trong `checkpoints/level6/pool/`; chọn ngẫu nhiên đối thủ từ pool cho từng lô ván song song.
-- **Đánh giá định kỳ & Auto-resume:** Sau mỗi vòng (`episodes_per_round`), đánh giá với SL trên khai cuộc cân bằng, lưu `rounds/round_XXX.pt`, `best.pt`, `latest.pt` và ghi `train_log.jsonl`.
+- **Đánh giá định kỳ & Auto-resume:** Sau mỗi vòng (`episodes_per_round`), đánh giá 100 ván với SL trên khai cuộc cân bằng (chỉ cập nhật `best.pt` khi thắng vượt hẳn `best_score`), lưu `rounds/round_XXX.pt`, `best.pt`, `latest.pt` và ghi `train_log.jsonl`. Khi chạy `--no-resume`, hệ thống dọn sạch `pool/` và `rounds/` cũ trước khi khởi tạo từ bản Cấp 5 mới.
 - **Tác tử Cấp 6:** `RLAgent` (`agents/rl_agent.py`), đăng ký khóa `"rl"` trong `arena/agent_factory.py`.
 
 ### Lệnh chạy huấn luyện & Thí nghiệm RQ3
@@ -127,7 +127,7 @@ agents:
 # Huấn luyện RL self-play (20.000–50.000 episode; tự chạy tiếp nếu có latest.pt)
 python -m training.train_rl configs/training/rl.yaml --device auto
 
-# Chạy giải đấu chính thức RQ3 (đối đầu SL vs các checkpoint RL qua từng vòng)
+# Chạy giải đấu chính thức RQ3 (đối đầu SL vs RL và kiểm tra qua đối thủ chung heuristic)
 python -m arena.tournament configs/arena/rq3.yaml
 
 # Vẽ đường cong học tập RQ3 và xuất bảng Markdown (Wilson 95% CI)

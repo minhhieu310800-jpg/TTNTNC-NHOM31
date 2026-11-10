@@ -167,3 +167,91 @@ def test_train_rl_end_to_end_and_auto_resume(tmp_path):
     assert summary2["rounds_done"] == 3
     log_lines2 = (out_dir / "train_log.jsonl").read_text(encoding="utf-8").strip().splitlines()
     assert [json.loads(l)["round"] for l in log_lines2] == [0, 1, 2, 3]
+
+
+def test_train_rl_no_resume_cleans_pool_and_rounds(tmp_path):
+    """Chạy --no-resume với mạng SL mới trên cùng out_dir phải dọn sạch pool/rounds và thay anchor_sl.pt."""
+    def _make_marked_sl(name: str, bias_val: float) -> Path:
+        net = PolicyValueNet(blocks=1, channels=8, size=11)
+        with torch.no_grad():
+            net.policy_fc.bias.fill_(bias_val)
+        return save_checkpoint(tmp_path / f"{name}.pt", net, epoch=1)
+
+    sl_a = _make_marked_sl("sl_a", 0.111)
+    sl_b = _make_marked_sl("sl_b", 0.999)
+    out_dir = tmp_path / "level6_shared"
+
+    common = {
+        "board_size": 11,
+        "rule": "vietnam",
+        "episodes_per_round": 4,
+        "rollout_batch_games": 4,
+        "minibatch_size": 8,
+        "eval_games": 2,
+        "opening_min_moves": 2,
+        "opening_max_moves": 2,
+        "device": "cpu",
+        "seed": 1,
+    }
+
+    # Lần 1: chạy 2 vòng (8 episodes) với mạng SL A
+    train_rl(config={**common, "episodes": 8}, out_dir=out_dir, init_checkpoint=sl_a)
+    assert (out_dir / "rounds" / "round_002.pt").exists()
+    assert (out_dir / "pool" / "round_002.pt").exists()
+    anchor_a, _ = load_network(out_dir / "pool" / "anchor_sl.pt")
+    assert torch.allclose(anchor_a.policy_fc.bias, torch.full_like(anchor_a.policy_fc.bias, 0.111))
+
+    # Lần 2: chạy lại --no-resume với mạng SL B trên cùng out_dir (chỉ 1 vòng)
+    train_rl(config={**common, "episodes": 4}, out_dir=out_dir, init_checkpoint=sl_b, no_resume=True)
+
+    # Các file round_002 của lần 1 phải bị xóa hoàn toàn
+    assert not (out_dir / "rounds" / "round_002.pt").exists()
+    assert not (out_dir / "pool" / "round_002.pt").exists()
+    assert [p.name for p in sorted((out_dir / "rounds").glob("round_*.pt"))] == ["round_000.pt", "round_001.pt"]
+
+    # Bản neo trong pool phải là mạng SL B (0.999), không còn SL A (0.111)
+    anchor_b, _ = load_network(out_dir / "pool" / "anchor_sl.pt")
+    assert torch.allclose(anchor_b.policy_fc.bias, torch.full_like(anchor_b.policy_fc.bias, 0.999))
+
+    # Lần 3: auto-resume tiếp lên 8 episodes phải giữ bản neo SL B và log [0, 1, 2]
+    train_rl(config={**common, "episodes": 8}, out_dir=out_dir, init_checkpoint=sl_b)
+    anchor_after, _ = load_network(out_dir / "pool" / "anchor_sl.pt")
+    assert torch.allclose(anchor_after.policy_fc.bias, torch.full_like(anchor_after.policy_fc.bias, 0.999))
+    log_lines = (out_dir / "train_log.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    assert [json.loads(l)["round"] for l in log_lines] == [0, 1, 2]
+
+
+def test_train_rl_best_not_overwritten_on_tie(tmp_path, monkeypatch):
+    """Chỉ cập nhật best.pt khi score_vs_sl lớn hơn hẳn best_score, không ghi đè khi hòa điểm."""
+    import training.train_rl as rl_mod
+
+    sl_ckpt = _make_level5_checkpoint(tmp_path)
+    out_dir = tmp_path / "level6_tie"
+
+    scores = iter([0.50, 0.75, 0.75])  # vòng 0: 0.50, vòng 1: 0.75 (best!), vòng 2: 0.75 (hòa -> không ghi đè)
+    monkeypatch.setattr(
+        rl_mod,
+        "evaluate_vs_baseline",
+        lambda *args, **kwargs: (lambda s: {"games": 100, "wins": int(s * 100), "draws": 0, "losses": 100 - int(s * 100), "score": s, "ci95": [s - 0.09, s + 0.09]})(next(scores)),
+    )
+
+    train_rl(
+        config={
+            "episodes": 8,
+            "episodes_per_round": 4,
+            "rollout_batch_games": 4,
+            "minibatch_size": 8,
+            "eval_games": 100,
+            "opening_min_moves": 2,
+            "opening_max_moves": 2,
+            "device": "cpu",
+            "seed": 0,
+        },
+        out_dir=out_dir,
+        init_checkpoint=sl_ckpt,
+    )
+
+    _, best_meta = load_network(out_dir / "best.pt")
+    assert best_meta["epoch"] == 1  # giữ nguyên vòng 1, không bị vòng 2 hòa 0.75 ghi đè
+    log_recs = [json.loads(l) for l in (out_dir / "train_log.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert [r["is_best"] for r in log_recs] == [True, True, False]

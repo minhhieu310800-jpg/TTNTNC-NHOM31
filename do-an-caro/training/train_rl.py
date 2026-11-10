@@ -442,8 +442,8 @@ def train_rl(
     rng = np.random.default_rng(seed)
 
     target_out_dir = Path(out_dir or config.get("out_dir", DEFAULT_RL_OUT_DIR))
+    target_out_dir.mkdir(parents=True, exist_ok=True)
     rounds_dir = target_out_dir / "rounds"
-    rounds_dir.mkdir(parents=True, exist_ok=True)
 
     dev_name = device_name or config.get("device", "auto")
     device = pick_device(dev_name)
@@ -458,7 +458,7 @@ def train_rl(
     size = int(config.get("board_size", DEFAULT_BOARD_SIZE))
     rule = str(config.get("rule", RULE_VIETNAM))
     max_pool_size = int(config.get("max_pool_size", 20))
-    eval_games = int(config.get("eval_games", 40))
+    eval_games = int(config.get("eval_games", 100))
 
     openings_file = config.get("openings_file")
     openings = load_openings(openings_file) if openings_file and Path(openings_file).exists() else []
@@ -484,6 +484,7 @@ def train_rl(
     print("=" * 70)
 
     if resume_path is not None:
+        rounds_dir.mkdir(parents=True, exist_ok=True)
         print(f"Phát hiện checkpoint {resume_path}, tự động tiếp tục...")
         payload = torch.load(resume_path, map_location=device, weights_only=False)
         model = PolicyValueNet(**payload["config"]).to(device)
@@ -511,8 +512,14 @@ def train_rl(
                 f"Không tìm thấy checkpoint Cấp 5 (SL) tại: {init_ckpt_path}.\n"
                 "Cấp 6 bắt buộc khởi tạo từ mạng Cấp 5 theo Proposal mục 4–5."
             )
-        if log_path.exists():
-            log_path.unlink()
+        # Dọn sạch pool, rounds và checkpoint cũ khi chạy mới / --no-resume để không lẫn bản neo SL cũ
+        for stale_dir in (target_out_dir / "pool", rounds_dir):
+            if stale_dir.exists():
+                shutil.rmtree(stale_dir)
+        for stale_file in (log_path, latest_path, target_out_dir / "best.pt", target_out_dir / "summary.json"):
+            if stale_file.exists():
+                stale_file.unlink()
+        rounds_dir.mkdir(parents=True, exist_ok=True)
 
         model, sl_meta = load_checkpoint(init_ckpt_path, device)
         sl_baseline, _ = load_checkpoint(init_ckpt_path, device)
@@ -604,7 +611,7 @@ def train_rl(
 
             eval_res = evaluate_vs_baseline(model, sl_baseline, openings, eval_games, size, rule, device)
             score_vs_sl = float(eval_res["score"])
-            is_best = score_vs_sl > best_score or (score_vs_sl == best_score and score_vs_sl > 0.5)
+            is_best = score_vs_sl > best_score
 
             round_ckpt = rounds_dir / f"round_{rnd:03d}.pt"
             save_checkpoint(

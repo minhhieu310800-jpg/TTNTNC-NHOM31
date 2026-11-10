@@ -32,7 +32,7 @@ center_radius: 2
 
 # Pool đối thủ & Đánh giá RQ3 trực tuyến
 max_pool_size: 20          # luôn giữ bản neo SL + 19 checkpoint lịch sử gần nhất
-eval_games: 40             # 20 khai cuộc cân bằng x 2 đổi bên đấu với SL sau mỗi vòng
+eval_games: 100            # 50 khai cuộc cân bằng x 2 đổi bên đấu với SL sau mỗi vòng (CI95 ~ ±0.10)
 openings_file: "configs/openings.json"
 
 device: "auto"

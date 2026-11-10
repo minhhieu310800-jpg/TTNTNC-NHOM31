@@ -2,8 +2,8 @@
 
 Đọc log huấn luyện (`checkpoints/level6/train_log.jsonl`) và/hoặc log giải đấu
 chính thức (`logs/rq3_rl_vs_sl.jsonl`) để:
-1. Tạo bảng Markdown so sánh các checkpoint RL self-play với mạng Cấp 5 (SL),
-   kèm khoảng tin cậy Wilson 95% và phân tách theo màu quân X/O.
+1. Tạo bảng Markdown so sánh các checkpoint RL self-play với mạng Cấp 5 (SL)
+   và qua đối thủ chung ngoài tập train (ví dụ `heuristic`), kèm Wilson 95% CI và tách X/O.
 2. Vẽ biểu đồ đường cong học tập (`analysis/figures/rq3_learning_curve.png`).
 
 Chạy:
@@ -47,16 +47,19 @@ def load_train_log(path: str | Path) -> list[dict[str, Any]]:
     return sorted(records, key=lambda r: int(r.get("round", 0)))
 
 
-def summarize_arena_rq3(arena_log: str | Path, baseline_label: str = "sl") -> list[dict[str, Any]]:
-    """Tổng hợp kết quả đối đầu giữa các checkpoint RL và SL từ log arena."""
-    games = load_games(str(arena_log))
+def _summarize_vs_target(
+    games: list[dict[str, Any]],
+    target_label: str,
+    candidate_labels: list[str],
+) -> list[dict[str, Any]]:
+    """Tổng hợp kết quả của danh sách tác tử khi đấu với `target_label`."""
     pt = pair_table(games)
     ct = color_table(games)
-    labels = [lbl for lbl in agents_in(games) if lbl != baseline_label]
-
     rows: list[dict[str, Any]] = []
-    for lbl in labels:
-        row = pt.get((lbl, baseline_label))
+    for lbl in candidate_labels:
+        if lbl == target_label:
+            continue
+        row = pt.get((lbl, target_label))
         if row is None:
             continue
         c_info = ct["agents"].get(lbl, {})
@@ -74,33 +77,74 @@ def summarize_arena_rq3(arena_log: str | Path, baseline_label: str = "sl") -> li
     return rows
 
 
+def summarize_arena_rq3(
+    arena_log: str | Path,
+    baseline_label: str = "sl",
+    external_label: str = "heuristic",
+) -> list[dict[str, Any]]:
+    """Tổng hợp kết quả đối đầu trực tiếp giữa các checkpoint RL và SL từ log arena."""
+    games = load_games(str(arena_log))
+    labels = [lbl for lbl in agents_in(games) if lbl not in (baseline_label, external_label)]
+    return _summarize_vs_target(games, baseline_label, labels)
+
+
+def summarize_external_rq3(
+    arena_log: str | Path,
+    baseline_label: str = "sl",
+    external_label: str = "heuristic",
+) -> list[dict[str, Any]]:
+    """Tổng hợp kết quả của `sl` và các checkpoint RL khi đấu với đối thủ chung ngoài tập train."""
+    games = load_games(str(arena_log))
+    all_labels = agents_in(games)
+    if external_label not in all_labels:
+        return []
+    ordered = ([baseline_label] if baseline_label in all_labels else []) + [
+        lbl for lbl in all_labels if lbl not in (baseline_label, external_label)
+    ]
+    return _summarize_vs_target(games, external_label, ordered)
+
+
+def _arena_table_markdown(rows: list[dict[str, Any]], opponent_label: str) -> list[str]:
+    lines = [
+        f"| Tác tử | Đối thủ | Số ván | Thắng | Hòa | Thua | Score | Wilson 95% | Score (X) | Score (O) |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for r in rows:
+        lo, hi = r["ci95"]
+        sx = f"{r['score_as_x']:.3f}" if r["score_as_x"] is not None else "–"
+        so = f"{r['score_as_o']:.3f}" if r["score_as_o"] is not None else "–"
+        lines.append(
+            f"| **{r['label']}** | {opponent_label} | {r['n']} | {r['wins']} | {r['draws']} | {r['losses']} "
+            f"| {r['score']:.3f} | [{lo:.3f}, {hi:.3f}] | {sx} | {so} |"
+        )
+    lines.append("")
+    return lines
+
+
 def build_rq3_markdown(
     train_records: list[dict[str, Any]] | None,
     arena_rows: list[dict[str, Any]] | None,
+    external_rows: list[dict[str, Any]] | None = None,
+    external_label: str = "heuristic",
 ) -> str:
     """Tạo báo cáo Markdown đầy đủ cho RQ3."""
     lines = ["# Kết quả thí nghiệm RQ3: SL vs RL Self-Play (Cấp 6)", ""]
 
     if arena_rows:
+        lines.extend(["## 1. Đối đầu trực tiếp trên Arena (SL làm chuẩn đối chiếu)", ""])
+        lines.extend(_arena_table_markdown(arena_rows, "sl"))
+
+    if external_rows:
         lines.extend([
-            "## 1. Đối đầu chính thức trên Arena (SL làm chuẩn đối chiếu)",
+            f"## 2. Đánh giá tổng quát trước đối thủ chung ngoài tập train (`{external_label}`)",
             "",
-            "| Checkpoint RL | Số ván | Thắng | Hòa | Thua | Score vs SL | Wilson 95% | Score (X) | Score (O) |",
-            "|---|---|---|---|---|---|---|---|---|",
+            *_arena_table_markdown(external_rows, external_label),
         ])
-        for r in arena_rows:
-            lo, hi = r["ci95"]
-            sx = f"{r['score_as_x']:.3f}" if r["score_as_x"] is not None else "–"
-            so = f"{r['score_as_o']:.3f}" if r["score_as_o"] is not None else "–"
-            lines.append(
-                f"| **{r['label']}** | {r['n']} | {r['wins']} | {r['draws']} | {r['losses']} "
-                f"| {r['score']:.3f} | [{lo:.3f}, {hi:.3f}] | {sx} | {so} |"
-            )
-        lines.append("")
 
     if train_records:
+        sec_idx = 1 + int(bool(arena_rows)) + int(bool(external_rows))
         lines.extend([
-            "## 2. Đường cong học tập theo vòng self-play (`train_log.jsonl`)",
+            f"## {sec_idx}. Đường cong học tập theo vòng self-play (`train_log.jsonl`)",
             "",
             "| Vòng | Episodes | Policy Loss | Value Loss | Entropy | Mean Reward | Score vs SL | Wilson 95% | Best |",
             "|---|---|---|---|---|---|---|---|---|",
@@ -124,18 +168,20 @@ def plot_rq3_learning_curve(
     out_fig: str | Path,
     train_records: list[dict[str, Any]] | None = None,
     arena_rows: list[dict[str, Any]] | None = None,
+    external_rows: list[dict[str, Any]] | None = None,
+    external_label: str = "heuristic",
 ) -> Path:
-    """Vẽ biểu đồ đường cong học tập RQ3 (score vs SL + chỉ số Actor-Critic) và lưu file PNG."""
+    """Vẽ biểu đồ đường cong học tập RQ3 và đối chiếu qua đối thủ chung."""
     out_path = Path(out_fig)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     has_train = bool(train_records)
-    has_arena = bool(arena_rows)
+    has_arena = bool(arena_rows or external_rows)
     if not has_train and not has_arena:
-        raise ValueError("Cần ít nhất một nguồn dữ liệu (`train_records` hoặc `arena_rows`).")
+        raise ValueError("Cần ít nhất một nguồn dữ liệu (`train_records`, `arena_rows` hoặc `external_rows`).")
 
     ncols = 2 if (has_train and has_arena) or has_train else 1
-    fig, axes = plt.subplots(1, ncols, figsize=(7 * ncols, 5))
+    fig, axes = plt.subplots(1, ncols, figsize=(7.5 * ncols, 5))
     if ncols == 1:
         axes = [axes]
 
@@ -159,7 +205,6 @@ def plot_rq3_learning_curve(
         ax0.legend(loc="best")
 
         if not has_arena:
-            # Đồ thị phụ: Value loss và Entropy qua các vòng cập nhật
             upd = [r for r in train_records if r.get("value_loss") is not None]
             if upd:
                 u_eps = [r["episodes"] for r in upd]
@@ -177,21 +222,44 @@ def plot_rq3_learning_curve(
                 ax1.legend(lines, [l.get_label() for l in lines], loc="best")
                 ax1.set_title("Động lực học Actor-Critic (Value Loss & Entropy)")
 
-    if has_arena and arena_rows is not None:
+    if has_arena:
         ax = axes[ax_idx]
-        labels = [r["label"] for r in arena_rows]
-        x = list(range(len(labels)))
-        scores = [r["score"] * 100.0 for r in arena_rows]
-        yerr_lo = [max(0.0, (r["score"] - r["ci95"][0]) * 100.0) for r in arena_rows]
-        yerr_hi = [max(0.0, (r["ci95"][1] - r["score"]) * 100.0) for r in arena_rows]
+        # Ghép danh sách nhãn thống nhất (sl đầu tiên nếu có external_rows, tiếp theo là các checkpoint RL)
+        labels: list[str] = []
+        for grp in (external_rows or []), (arena_rows or []):
+            for r in grp:
+                if r["label"] not in labels:
+                    labels.append(r["label"])
+        pos = {lbl: idx for idx, lbl in enumerate(labels)}
 
-        ax.errorbar(x, scores, yerr=[yerr_lo, yerr_hi], fmt="o-", capsize=5, color="#1f77b4", linewidth=2, label="Arena Score vs SL")
-        ax.axhline(50.0, color="#d62728", linestyle="--", linewidth=1.2, label="Mốc hòa SL (50%)")
-        ax.set_xticks(x)
+        if arena_rows:
+            ax.errorbar(
+                [pos[r["label"]] for r in arena_rows],
+                [r["score"] * 100.0 for r in arena_rows],
+                yerr=[
+                    [max(0.0, (r["score"] - r["ci95"][0]) * 100.0) for r in arena_rows],
+                    [max(0.0, (r["ci95"][1] - r["score"]) * 100.0) for r in arena_rows],
+                ],
+                fmt="o-", capsize=5, color="#1f77b4", linewidth=2, label="Score vs SL",
+            )
+            ax.axhline(50.0, color="#d62728", linestyle="--", linewidth=1.2, label="Mốc hòa SL (50%)")
+
+        if external_rows:
+            ax.errorbar(
+                [pos[r["label"]] for r in external_rows],
+                [r["score"] * 100.0 for r in external_rows],
+                yerr=[
+                    [max(0.0, (r["score"] - r["ci95"][0]) * 100.0) for r in external_rows],
+                    [max(0.0, (r["ci95"][1] - r["score"]) * 100.0) for r in external_rows],
+                ],
+                fmt="s--", capsize=5, color="#ff7f0e", linewidth=2, label=f"Score vs {external_label} (ngoài train)",
+            )
+
+        ax.set_xticks(list(range(len(labels))))
         ax.set_xticklabels(labels, rotation=20, ha="right")
-        ax.set_ylabel("Score vs SL (%)")
+        ax.set_ylabel("Score (%)")
         ax.set_ylim(0, 105)
-        ax.set_title("Đối đầu Arena RQ3: Các checkpoint RL vs SL (200 ván/cặp)")
+        ax.set_title("Đối đầu Arena RQ3: RL vs SL & Đối thủ ngoài tập train")
         ax.grid(True, alpha=0.3)
         ax.legend(loc="best")
 
@@ -206,6 +274,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train-log", help="Đường dẫn tới checkpoints/level6/train_log.jsonl")
     parser.add_argument("--arena-log", help="Đường dẫn tới logs/rq3_rl_vs_sl.jsonl")
     parser.add_argument("--baseline", default="sl", help="Nhãn tác tử SL chuẩn trong arena log (mặc định: sl)")
+    parser.add_argument("--external", default="heuristic", help="Nhãn đối thủ chung ngoài tập train (mặc định: heuristic)")
     parser.add_argument("--fig", default="analysis/figures/rq3_learning_curve.png", help="Đường dẫn file ảnh PNG đầu ra.")
     parser.add_argument("--out", help="Đường dẫn lưu báo cáo Markdown.")
     return parser.parse_args()
@@ -218,16 +287,23 @@ def main() -> None:
         sys.exit(1)
 
     train_records = load_train_log(args.train_log) if args.train_log else None
-    arena_rows = summarize_arena_rq3(args.arena_log, args.baseline) if args.arena_log else None
+    arena_rows = summarize_arena_rq3(args.arena_log, args.baseline, args.external) if args.arena_log else None
+    external_rows = summarize_external_rq3(args.arena_log, args.baseline, args.external) if args.arena_log else None
 
-    report = build_rq3_markdown(train_records, arena_rows)
+    report = build_rq3_markdown(train_records, arena_rows, external_rows, external_label=args.external)
     print(report)
     if args.out:
         out_md = Path(args.out)
         out_md.parent.mkdir(parents=True, exist_ok=True)
         out_md.write_text(report, encoding="utf-8")
 
-    fig_path = plot_rq3_learning_curve(args.fig, train_records=train_records, arena_rows=arena_rows)
+    fig_path = plot_rq3_learning_curve(
+        args.fig,
+        train_records=train_records,
+        arena_rows=arena_rows,
+        external_rows=external_rows,
+        external_label=args.external,
+    )
     print(f"Đã lưu biểu đồ đường cong học tập vào: {fig_path}")
 
 

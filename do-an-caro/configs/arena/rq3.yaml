@@ -1,14 +1,16 @@
 # RQ3 – Cấp 6 RL Self-Play (issue #11, proposal mục 2):
 # "Self-play có cải thiện tác tử học được so với mạng chỉ bắt chước Alpha-Beta không?"
 # Giả thuyết: Có, nhưng cải thiện bão hòa sớm do ngân sách GPU hạn chế.
-# Thí nghiệm: Đối đầu checkpoint SL (Cấp 5) vs các checkpoint RL self-play qua các vòng
-# (5k / 10k / 15k / 20k episodes và best.pt) để vẽ đường cong học tập RQ3.
+# Thí nghiệm gồm 2 phần (200 ván/cặp, Chế độ B):
+#   1. Đối đầu trực tiếp giữa các checkpoint RL (5k/10k/15k/20k/best) với SL.
+#   2. So sánh cùng các checkpoint trên trước một đối thủ chung không có trong lúc train (`heuristic`)
+#      để kiểm chứng RL mạnh lên thực chất thay vì chỉ khai thác điểm yếu riêng của SL.
 #
 # Cần checkpoints/level5/best.pt và checkpoints/level6/{rounds/round_*,best.pt}
 # (tải từ Drive MyDrive/caro/level5 và MyDrive/caro/level6).
 #
 # python -m arena.tournament configs/arena/rq3.yaml --limit 20   # chạy thử 20 ván
-# python -m arena.tournament configs/arena/rq3.yaml              # chạy đủ 1.000 ván
+# python -m arena.tournament configs/arena/rq3.yaml              # chạy đủ 2.200 ván
 # python -m analysis.rq3_learning_curve --arena-log logs/rq3_rl_vs_sl.jsonl --train-log checkpoints/level6/train_log.jsonl
 name: rq3_rl_vs_sl
 mode: B
@@ -38,6 +40,8 @@ agents:
   rl_best:
     type: rl
     params: {checkpoint: checkpoints/level6/best.pt, device: cpu}
+  heuristic:
+    type: heuristic      # Đối thủ chung ngoài tập train để kiểm tra năng lực tổng quát
 
 pairs:
   - [rl_r005, sl]
@@ -45,3 +49,9 @@ pairs:
   - [rl_r015, sl]
   - [rl_r020, sl]
   - [rl_best, sl]
+  - [sl, heuristic]
+  - [rl_r005, heuristic]
+  - [rl_r010, heuristic]
+  - [rl_r015, heuristic]
+  - [rl_r020, heuristic]
+  - [rl_best, heuristic]
