@@ -1,0 +1,39 @@
+# Cấu hình huấn luyện Cấp 6: RL Self-Play Actor-Critic (Issue #11, Proposal mục 4–5)
+# Khởi tạo từ checkpoint Cấp 5 (checkpoints/level5/best.pt), tự chơi với pool checkpoint cũ.
+
+name: "caro_rl_level6"
+init_checkpoint: "checkpoints/level5/best.pt"
+out_dir: "checkpoints/level6"
+
+# Môi trường game
+board_size: 11
+rule: "vietnam"
+
+# Quy mô huấn luyện (Proposal mục 5: 20.000–50.000 episode)
+episodes: 20000
+episodes_per_round: 1000   # 20 vòng => lưu 20 checkpoint trung gian cho đường cong học tập RQ3
+rollout_batch_games: 64    # Chơi song song 64 ván để gom batch suy luận trên GPU
+minibatch_size: 256
+
+# Tối ưu Actor-Critic (chống quên thảm họa)
+lr: 0.0001                 # lr 1e-4 phù hợp fine-tune RL từ SL
+weight_decay: 0.0001
+value_coef: 0.5
+entropy_coef: 0.01         # giữ khám phá, tránh policy collapse
+grad_clip: 1.0
+augment: true              # 8 phép đối xứng D4 khi cập nhật gradient
+
+# Khám phá & Khai cuộc
+temperature: 1.0           # nhiệt độ tau lấy mẫu của tác tử đang học
+opponent_temperature: 0.5  # nhiệt độ đối thủ trong pool (đa dạng nước đi nhưng vẫn mạnh)
+opening_min_moves: 2       # 2–4 nước ngẫu nhiên vùng 5x5 quanh tâm
+opening_max_moves: 4
+center_radius: 2
+
+# Pool đối thủ & Đánh giá RQ3 trực tuyến
+max_pool_size: 20          # luôn giữ bản neo SL + 19 checkpoint lịch sử gần nhất
+eval_games: 40             # 20 khai cuộc cân bằng x 2 đổi bên đấu với SL sau mỗi vòng
+openings_file: "configs/openings.json"
+
+device: "auto"
+seed: 42

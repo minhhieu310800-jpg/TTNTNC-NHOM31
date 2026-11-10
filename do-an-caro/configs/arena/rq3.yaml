@@ -1,0 +1,47 @@
+# RQ3 – Cấp 6 RL Self-Play (issue #11, proposal mục 2):
+# "Self-play có cải thiện tác tử học được so với mạng chỉ bắt chước Alpha-Beta không?"
+# Giả thuyết: Có, nhưng cải thiện bão hòa sớm do ngân sách GPU hạn chế.
+# Thí nghiệm: Đối đầu checkpoint SL (Cấp 5) vs các checkpoint RL self-play qua các vòng
+# (5k / 10k / 15k / 20k episodes và best.pt) để vẽ đường cong học tập RQ3.
+#
+# Cần checkpoints/level5/best.pt và checkpoints/level6/{rounds/round_*,best.pt}
+# (tải từ Drive MyDrive/caro/level5 và MyDrive/caro/level6).
+#
+# python -m arena.tournament configs/arena/rq3.yaml --limit 20   # chạy thử 20 ván
+# python -m arena.tournament configs/arena/rq3.yaml              # chạy đủ 1.000 ván
+# python -m analysis.rq3_learning_curve --arena-log logs/rq3_rl_vs_sl.jsonl --train-log checkpoints/level6/train_log.jsonl
+name: rq3_rl_vs_sl
+mode: B
+size: 11
+rule: vietnam
+openings_file: configs/openings.json
+num_openings: 100        # 100 khai cuộc x 2 lượt đổi bên = 200 ván/cặp
+seeds: [0]               # Chế độ argmax tất định; đổi temperature>0 + stochastic:true nếu muốn đa seed
+workers: 4
+
+agents:
+  sl:
+    type: sl
+    params: {checkpoint: checkpoints/level5/best.pt, device: cpu}
+  rl_r005:
+    type: rl
+    params: {checkpoint: checkpoints/level6/rounds/round_005.pt, device: cpu}
+  rl_r010:
+    type: rl
+    params: {checkpoint: checkpoints/level6/rounds/round_010.pt, device: cpu}
+  rl_r015:
+    type: rl
+    params: {checkpoint: checkpoints/level6/rounds/round_015.pt, device: cpu}
+  rl_r020:
+    type: rl
+    params: {checkpoint: checkpoints/level6/rounds/round_020.pt, device: cpu}
+  rl_best:
+    type: rl
+    params: {checkpoint: checkpoints/level6/best.pt, device: cpu}
+
+pairs:
+  - [rl_r005, sl]
+  - [rl_r010, sl]
+  - [rl_r015, sl]
+  - [rl_r020, sl]
+  - [rl_best, sl]
