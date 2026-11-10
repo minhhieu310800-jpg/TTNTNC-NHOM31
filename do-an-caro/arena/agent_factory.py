@@ -8,7 +8,6 @@ from typing import Any
 
 from agents import AlphaBetaAgent, HeuristicAgent, MCTSAgent, RandomAgent
 from agents.base import Agent
-from agents.puct_agent import PUCTAgent
 
 # Loại tác tử -> lớp. Cấp 5–6 thêm vào đây khi có.
 # "puct": cấp 7 (checkpoint mạng cấp 5/6) hoặc cấp 8 (checkpoint AlphaZero), params: checkpoint, simulations.
@@ -17,7 +16,6 @@ AGENT_TYPES: dict[str, type[Agent]] = {
     "heuristic": HeuristicAgent,
     "alphabeta": AlphaBetaAgent,
     "mcts": MCTSAgent,
-    "puct": PUCTAgent,
 }
 
 # Tác tử có yếu tố ngẫu nhiên thật sự -> chạy thêm nhiều seed (proposal mục 6).
@@ -37,8 +35,8 @@ class AgentSpec:
     @classmethod
     def from_config(cls, label: str, cfg: dict[str, Any]) -> AgentSpec:
         agent_type = cfg["type"]
-        if agent_type not in AGENT_TYPES:
-            raise ValueError(f"Loại tác tử '{agent_type}' chưa đăng ký. Có: {sorted(AGENT_TYPES)}")
+        if agent_type not in AGENT_TYPES and agent_type != "puct":
+            raise ValueError(f"Loại tác tử '{agent_type}' chưa đăng ký. Có: {sorted(set(AGENT_TYPES) | {'puct'})}")
         return cls(
             label=label,
             type=agent_type,
@@ -52,7 +50,12 @@ class AgentSpec:
 
 def build_agent(spec: AgentSpec, seed: int | None = None) -> Agent:
     """Tạo tác tử mới; truyền `seed` nếu lớp tác tử nhận tham số này."""
-    cls = AGENT_TYPES[spec.type]
+    if spec.type == "puct":
+        # Neural agents alone require the optional, heavyweight torch import.
+        from agents.puct_agent import PUCTAgent
+        cls = PUCTAgent
+    else:
+        cls = AGENT_TYPES[spec.type]
     kwargs = dict(spec.params)
     if seed is not None and "seed" in inspect.signature(cls.__init__).parameters:
         kwargs["seed"] = seed
