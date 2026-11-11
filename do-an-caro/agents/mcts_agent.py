@@ -13,7 +13,10 @@ import random
 import time
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from agents.base import Agent
+from agents.fast_rollout import advance_rollout, local_rollout_moves, tactical_rollout_action
 from game.patterns import get_candidate_moves, is_immediate_win
 
 if TYPE_CHECKING:
@@ -154,12 +157,11 @@ class MCTSAgent(Agent):
     def _rollout_action(self, game: CaroGame) -> int:
         moves = self._local_moves(game)
         if self.rollout == ROLLOUT_HEURISTIC:
-            me = game.current_player
-            for player in (me, -me):
-                for action in moves:
-                    r, c = game.action_to_coord(action)
-                    if is_immediate_win(game.board, r, c, player, rule=game.rule):
-                        return action
+            action = tactical_rollout_action(
+                game.board, np.asarray(moves, dtype=np.int64), game.current_player, game.rule,
+            )
+            if action != -1:
+                return int(action)
         return self.rng.choice(moves)
 
     def _simulate(self, root: Node, game: CaroGame) -> None:
@@ -181,11 +183,8 @@ class MCTSAgent(Agent):
                 child = Node(node, action, player, self._moves(game))
                 node.children.append(child)
                 node = child
-            # 3. Simulation (cùng `game`, undo ở finally)
-            while not game.is_terminal():
-                game.step(self._rollout_action(game))
-                steps += 1
-            result = game.result()
+            # 3. Simulation on a private board; preserve Python RNG choice order.
+            result = self._rollout_result(game)
         finally:
             for _ in range(steps):
                 game.undo()
@@ -198,3 +197,29 @@ class MCTSAgent(Agent):
                 elif result == node.player:
                     node.wins += 1.0
             node = node.parent
+
+    def _rollout_result(self, game: CaroGame) -> int:
+        """Same playout as step/undo, without building history for rollout stones.
+
+        OpenAI Codex assisted optimization; local moves and win rules are unchanged.
+        Python random.Random still makes every random choice, preserving seeded runs.
+        """
+        if game.is_terminal():
+            return game.result()
+        board = game.board.copy()
+        last = -1 if game.last_move is None else game.last_move
+        player = game.current_player
+        for _ in range(game.num_cells - game.move_count):
+            moves = local_rollout_moves(board, last, LOCAL_RADIUS)
+            action = -1
+            if self.rollout == ROLLOUT_HEURISTIC:
+                action = tactical_rollout_action(
+                    board, np.asarray(moves, dtype=np.int64), player, game.rule,
+                )
+            if action == -1:
+                action = self.rng.choice(moves)
+            if advance_rollout(board, action, player, game.rule, game.win_streak):
+                return player
+            player = -player
+            last = action
+        return 0

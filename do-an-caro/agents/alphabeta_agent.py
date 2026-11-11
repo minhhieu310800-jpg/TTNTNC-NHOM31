@@ -177,7 +177,7 @@ class AlphaBetaAgent(Agent):
         key = self._hash(state) if self.use_tt else 0
         entry = self._tt.get(key) if self.use_tt else None
         tt_move = entry[3] if entry is not None else None
-        moves = self._prioritize_move(self._get_moves(state), tt_move)
+        moves = self._prioritize_move(self._get_moves(state), tt_move if self.use_move_ordering else None)
         for action in moves:
             state.step(action)
             try:
@@ -238,7 +238,7 @@ class AlphaBetaAgent(Agent):
         alpha_orig = alpha
         best = -INF
         moves = self._get_moves(state) if depth >= 2 else get_candidate_moves(state.board, self.radius)
-        moves = self._prioritize_move(moves, tt_move)
+        moves = self._prioritize_move(moves, tt_move if self.use_move_ordering else None)
         best_action: int | None = None
         for action in moves:
             state.step(action)

@@ -31,6 +31,7 @@ from arena.agent_factory import AgentSpec
 from arena.logger import JsonlLogger, completed_game_ids, write_run_meta
 from arena.match import GameTask, play_game
 from arena.openings import load_openings
+from arena.runtime import keep_awake
 from game.constants import DEFAULT_BOARD_SIZE, ENGINE_VERSION, RULE_VIETNAM
 
 MODES = ("A", "B")
@@ -108,6 +109,19 @@ def _limit_threads() -> None:
         os.environ.setdefault(var, "1")
 
 
+def _warm_search_kernels() -> None:
+    """Compile search kernels outside per-move timings (also in spawned workers)."""
+    import numpy as np
+    from agents.fast_eval import fast_evaluate
+    from agents.fast_rollout import advance_rollout, local_rollout_moves, tactical_rollout_action
+
+    board = np.zeros((11, 11), dtype=np.int8)
+    fast_evaluate(board, 1)
+    tactical_rollout_action(board, np.array([60], dtype=np.int64), 1, RULE_VIETNAM)
+    local_rollout_moves(board, 60, 2)
+    advance_rollout(board, 60, 1, RULE_VIETNAM, 5)
+
+
 def run_tournament(
     cfg: dict[str, Any],
     log_dir: str | Path = DEFAULT_LOG_DIR,
@@ -150,12 +164,14 @@ def run_tournament(
             print(f"  {finished}/{len(pending)} ván, {time.perf_counter() - started:.0f}s")
 
     if workers <= 1:
+        _warm_search_kernels()
         for task in pending:
             report(play_game(task))
     else:
         _limit_threads()
         ctx = mp.get_context("spawn")
-        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
+        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx,
+                                 initializer=_warm_search_kernels) as pool:
             futures = [pool.submit(play_game, t) for t in pending]
             for fut in as_completed(futures):
                 report(fut.result())
@@ -174,4 +190,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    with keep_awake():
+        main()
