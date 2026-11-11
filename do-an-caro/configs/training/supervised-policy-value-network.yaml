@@ -1,0 +1,31 @@
+# Cấu hình huấn luyện Supervised Learning (Cấp 5) cho Caro 11x11
+# Tuân thủ Proposal mục 5 và GitHub Issue #10
+
+name: "caro_supervised_policy_value_network"
+data_path: "data/dataset_sl.npz"
+out_dir: "checkpoints/level5"
+
+# Kiến trúc mạng PolicyValueNet dùng chung (Proposal mục 4–5)
+blocks: 6           # Cấp 5 dùng 6 khối residual
+channels: 64        # 64 kênh
+board_size: 11      # Bàn 11x11
+
+# Tham số huấn luyện
+epochs: 30
+batch_size: 256     # Batch 256 theo proposal
+lr: 0.001           # Adam lr 1e-3 theo proposal
+weight_decay: 0.0001 # L2 regularization
+value_weight: 1.0   # Tỷ trọng MSE value loss
+
+# Tăng cường dữ liệu
+augment: true       # 8 phép đối xứng ngẫu nhiên khi train
+
+# Early Stopping
+patience: 5         # Dừng sớm nếu val_loss không giảm sau 5 epochs
+min_delta: 0.0001   # Độ giảm tối thiểu để tính là cải thiện
+
+# Hệ thống
+device: "auto"      # "cuda" nếu có GPU, ngược lại "cpu"
+seed: 42
+num_workers: 2      # DataLoader workers (0 trên Windows nếu gặp lỗi đa tiến trình)
+

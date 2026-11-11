@@ -8,3 +8,6 @@ matplotlib>=3.7
 
 # Mạng policy-value, PUCT và AlphaZero-inspired (cấp 7–8)
 torch>=2.1
+
+# Giao diện demo (ui/)
+pygame>=2.5.0
