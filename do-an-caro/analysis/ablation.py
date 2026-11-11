@@ -1,6 +1,6 @@
-"""Reproducible issue #8 experiments. Run from the do-an-caro directory.
+"""Thí nghiệm tái lập cho issue #8, chạy từ thư mục do-an-caro.
 
-Implementation assisted by OpenAI Codex; reuses the project's arena/statistics.
+Có hỗ trợ từ OpenAI Codex; dùng lại arena và thống kê của dự án.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ import yaml
 from agents.alphabeta_agent import AlphaBetaAgent
 from agents.fast_eval import fast_evaluate
 from arena.openings import load_openings
+from arena.runtime import keep_awake
 from arena.tournament import build_schedule, run_tournament
 from analysis.arena_stats import load_games
 from analysis.summarize import pairs_markdown, timing_markdown
@@ -26,7 +27,7 @@ BUDGETS = (0.1, 0.5, 1.0)
 
 
 def experiment_configs(smoke: bool = False) -> list[dict]:
-    """Same openings, swapped sides and seeds for every paired comparison."""
+    """Dùng chung khai cuộc và seed, đổi bên cho mỗi cặp so sánh."""
     common = dict(size=11, rule="vietnam", openings_file="configs/openings.json",
                   num_openings=1 if smoke else 100, seeds=[0] if smoke else [0, 1, 2],
                   workers=1)
@@ -51,8 +52,8 @@ def experiment_configs(smoke: bool = False) -> list[dict]:
 
 
 def benchmark_ab(openings: list[dict], depth: int) -> list[dict]:
-    """Fixed depth, TT off: isolate pruning and ordering, without a time cutoff."""
-    fast_evaluate(CaroGame().board, 1)  # Compile Numba before measuring.
+    """Cố định độ sâu, tắt TT, không giới hạn giờ khi đo cắt tỉa và sắp nước."""
+    fast_evaluate(CaroGame().board, 1)  # Biên dịch Numba trước khi đo.
     rows = []
     for opening in openings:
         game = CaroGame()
@@ -106,14 +107,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="logs/ablation")
     parser.add_argument("--smoke", action="store_true")
-    parser.add_argument("--ab-depth", type=int, default=2)
+    parser.add_argument("--ab-depth", type=int, nargs="+", default=[2, 3],
+                        help="Các độ sâu Alpha-Beta cần đo (mặc định: 2 3)")
     parser.add_argument("--ab-positions", type=int, default=10)
     parser.add_argument("--workers", type=int, default=1)
-    parser.add_argument("--limit", type=int, help="Games per experiment per invocation; resumable")
+    parser.add_argument("--limit", type=int, help="Số ván mỗi thí nghiệm trong một lần chạy; hỗ trợ chạy tiếp")
     parser.add_argument("--only", choices=("all", "ab", "simulations", "rollout", "rq1"), default="all")
     args = parser.parse_args()
-    if args.ab_depth < 1 or args.ab_positions < 1 or args.workers < 1 or (args.limit is not None and args.limit < 1):
-        parser.error("depth, positions, workers and limit must be positive")
+    if any(d < 1 for d in args.ab_depth) or args.ab_positions < 1 or args.workers < 1 or (args.limit is not None and args.limit < 1):
+        parser.error("Độ sâu, số vị trí, số worker và giới hạn ván phải dương")
+    if len(set(args.ab_depth)) != len(args.ab_depth):
+        parser.error("Các độ sâu không được trùng nhau")
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     configs = experiment_configs(args.smoke)
@@ -124,7 +128,8 @@ def main() -> None:
     rows = []
     if args.only in ("all", "ab"):
         openings = load_openings("configs/openings.json")
-        rows = benchmark_ab(openings[:1 if args.smoke else args.ab_positions], args.ab_depth)
+        for depth in args.ab_depth:
+            rows.extend(benchmark_ab(openings[:1 if args.smoke else args.ab_positions], depth))
         with (out / "alphabeta.csv").open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0]))
             writer.writeheader()
@@ -135,9 +140,9 @@ def main() -> None:
     fast_evaluate(CaroGame().board, 1)
     for cfg in configs:
         path = out / f"{cfg['name']}.yaml"
-        # Resume only an identical configuration: game IDs do not encode params.
+        # Chỉ chạy tiếp cùng cấu hình vì mã ván không chứa tham số tác tử.
         if path.exists() and yaml.safe_load(path.read_text(encoding="utf-8")) != cfg:
-            raise ValueError(f"Configuration changed: use another --out directory ({path})")
+            raise ValueError(f"Cấu hình đã đổi: chọn thư mục --out khác ({path})")
         path.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
         run_tournament(cfg, log_dir=out, workers=args.workers, limit=args.limit)
     write_report(out, rows, configs)
@@ -145,4 +150,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    with keep_awake():
+        main()

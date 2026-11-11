@@ -1,4 +1,5 @@
-"""Experimental controls and minimax equivalence for issue #8."""
+"""Kiểm tra cấu hình thí nghiệm và tính tương đương minimax cho issue #8."""
+import pytest
 from analysis.ablation import benchmark_ab, experiment_configs
 from arena.tournament import build_schedule
 from arena.agent_factory import AgentSpec
@@ -19,7 +20,7 @@ def test_experiment_matrix():
     assert all(p['simulations'] == 1600 and not p['use_forced_move'] for p in params)
 
 
-def test_puct_config_still_registered_without_importing_torch():
+def test_puct_config_still_registered():
     assert AgentSpec.from_config('neural', {'type': 'puct'}).type == 'puct'
 
 
@@ -41,8 +42,9 @@ def test_rq1_pairs_swap_sides_and_reuse_openings_and_seeds():
     assert {t.seed for t in tasks} == {0, 1, 2}
 
 
-def test_four_ab_variants_preserve_minimax_score():
-    rows = benchmark_ab([{'id': 0, 'moves': [60, 61, 72, 48]}], depth=2)
+@pytest.mark.parametrize('depth', [2, 3])
+def test_four_ab_variants_preserve_minimax_score(depth):
+    rows = benchmark_ab([{'id': 0, 'moves': [60, 61, 72, 48]}], depth=depth)
     assert len(rows) == 4
     assert all(r['same_score'] for r in rows)
     baseline = rows[0]

@@ -1,0 +1,751 @@
+{
+  "configs": [
+    {
+      "size": 11,
+      "rule": "vietnam",
+      "openings_file": "configs/openings.json",
+      "num_openings": 100,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "workers": 1,
+      "name": "ablation_simulations",
+      "mode": "B",
+      "budget": null,
+      "agents": {
+        "ab": {
+          "type": "alphabeta",
+          "params": {
+            "depth": 3
+          }
+        },
+        "mcts_100": {
+          "type": "mcts",
+          "params": {
+            "simulations": 100,
+            "rollout": "random",
+            "use_forced_move": false
+          }
+        },
+        "mcts_400": {
+          "type": "mcts",
+          "params": {
+            "simulations": 400,
+            "rollout": "random",
+            "use_forced_move": false
+          }
+        },
+        "mcts_1600": {
+          "type": "mcts",
+          "params": {
+            "simulations": 1600,
+            "rollout": "random",
+            "use_forced_move": false
+          }
+        },
+        "mcts_6400": {
+          "type": "mcts",
+          "params": {
+            "simulations": 6400,
+            "rollout": "random",
+            "use_forced_move": false
+          }
+        }
+      },
+      "pairs": [
+        [
+          "ab",
+          "mcts_100"
+        ],
+        [
+          "ab",
+          "mcts_400"
+        ],
+        [
+          "ab",
+          "mcts_1600"
+        ],
+        [
+          "ab",
+          "mcts_6400"
+        ]
+      ]
+    },
+    {
+      "size": 11,
+      "rule": "vietnam",
+      "openings_file": "configs/openings.json",
+      "num_openings": 100,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "workers": 1,
+      "name": "ablation_rollout",
+      "mode": "B",
+      "budget": null,
+      "agents": {
+        "mcts_random": {
+          "type": "mcts",
+          "params": {
+            "simulations": 1600,
+            "rollout": "random",
+            "use_forced_move": false
+          }
+        },
+        "mcts_heuristic": {
+          "type": "mcts",
+          "params": {
+            "simulations": 1600,
+            "rollout": "heuristic",
+            "use_forced_move": false
+          }
+        }
+      }
+    },
+    {
+      "size": 11,
+      "rule": "vietnam",
+      "openings_file": "configs/openings.json",
+      "num_openings": 100,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "workers": 1,
+      "name": "rq1_0.1s",
+      "mode": "A",
+      "budget": 0.1,
+      "agents": {
+        "ab": {
+          "type": "alphabeta",
+          "params": {
+            "depth": 3
+          }
+        },
+        "mcts": {
+          "type": "mcts",
+          "params": {
+            "rollout": "random",
+            "use_forced_move": false
+          }
+        }
+      }
+    },
+    {
+      "size": 11,
+      "rule": "vietnam",
+      "openings_file": "configs/openings.json",
+      "num_openings": 100,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "workers": 1,
+      "name": "rq1_0.5s",
+      "mode": "A",
+      "budget": 0.5,
+      "agents": {
+        "ab": {
+          "type": "alphabeta",
+          "params": {
+            "depth": 3
+          }
+        },
+        "mcts": {
+          "type": "mcts",
+          "params": {
+            "rollout": "random",
+            "use_forced_move": false
+          }
+        }
+      }
+    },
+    {
+      "size": 11,
+      "rule": "vietnam",
+      "openings_file": "configs/openings.json",
+      "num_openings": 100,
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "workers": 1,
+      "name": "rq1_1.0s",
+      "mode": "A",
+      "budget": 1.0,
+      "agents": {
+        "ab": {
+          "type": "alphabeta",
+          "params": {
+            "depth": 3
+          }
+        },
+        "mcts": {
+          "type": "mcts",
+          "params": {
+            "rollout": "random",
+            "use_forced_move": false
+          }
+        }
+      }
+    }
+  ],
+  "software": {
+    "numpy": "2.4.6",
+    "numba": "0.68.0"
+  },
+  "source_revision_note": "Agents ran from the PR working tree. Git revisions in run_metadata are base revisions; source_sha256 records the source included with these results.",
+  "environment": {
+    "python": "3.11.9",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "arguments": {
+      "out": "logs/issue8_final",
+      "smoke": false,
+      "ab_depth": 3,
+      "ab_positions": 10,
+      "workers": 8,
+      "limit": null,
+      "only": "all"
+    }
+  },
+  "run_metadata": {
+    "ablation_simulations": [
+      {
+        "started_at": "2026-11-10T13:36:59+00:00",
+        "git_commit": "9f4dd660",
+        "hardware": {
+          "platform": "Windows-10-10.0.26200-SP0",
+          "machine": "AMD64",
+          "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+          "cpu_count": 16,
+          "ram_gb": null,
+          "python": "3.11.9",
+          "numpy": "2.4.6"
+        },
+        "experiment": "ablation_simulations",
+        "engine_version": "1.0.0",
+        "config": {
+          "size": 11,
+          "rule": "vietnam",
+          "openings_file": "configs/openings.json",
+          "num_openings": 100,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "workers": 1,
+          "name": "ablation_simulations",
+          "mode": "B",
+          "budget": null,
+          "agents": {
+            "ab": {
+              "type": "alphabeta",
+              "params": {
+                "depth": 3
+              }
+            },
+            "mcts_100": {
+              "type": "mcts",
+              "params": {
+                "simulations": 100,
+                "rollout": "random",
+                "use_forced_move": false
+              }
+            },
+            "mcts_400": {
+              "type": "mcts",
+              "params": {
+                "simulations": 400,
+                "rollout": "random",
+                "use_forced_move": false
+              }
+            },
+            "mcts_1600": {
+              "type": "mcts",
+              "params": {
+                "simulations": 1600,
+                "rollout": "random",
+                "use_forced_move": false
+              }
+            },
+            "mcts_6400": {
+              "type": "mcts",
+              "params": {
+                "simulations": 6400,
+                "rollout": "random",
+                "use_forced_move": false
+              }
+            }
+          },
+          "pairs": [
+            [
+              "ab",
+              "mcts_100"
+            ],
+            [
+              "ab",
+              "mcts_400"
+            ],
+            [
+              "ab",
+              "mcts_1600"
+            ],
+            [
+              "ab",
+              "mcts_6400"
+            ]
+          ]
+        },
+        "workers": 8,
+        "games_total": 2400,
+        "games_already_done": 0,
+        "games_this_run": 2400
+      }
+    ],
+    "ablation_rollout": [
+      {
+        "started_at": "2026-11-10T14:42:18+00:00",
+        "git_commit": "9f4dd660",
+        "hardware": {
+          "platform": "Windows-10-10.0.26200-SP0",
+          "machine": "AMD64",
+          "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+          "cpu_count": 16,
+          "ram_gb": null,
+          "python": "3.11.9",
+          "numpy": "2.4.6"
+        },
+        "experiment": "ablation_rollout",
+        "engine_version": "1.0.0",
+        "config": {
+          "size": 11,
+          "rule": "vietnam",
+          "openings_file": "configs/openings.json",
+          "num_openings": 100,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "workers": 1,
+          "name": "ablation_rollout",
+          "mode": "B",
+          "budget": null,
+          "agents": {
+            "mcts_random": {
+              "type": "mcts",
+              "params": {
+                "simulations": 1600,
+                "rollout": "random",
+                "use_forced_move": false
+              }
+            },
+            "mcts_heuristic": {
+              "type": "mcts",
+              "params": {
+                "simulations": 1600,
+                "rollout": "heuristic",
+                "use_forced_move": false
+              }
+            }
+          }
+        },
+        "workers": 8,
+        "games_total": 600,
+        "games_already_done": 0,
+        "games_this_run": 600
+      },
+      {
+        "started_at": "2026-11-10T15:53:08+00:00",
+        "git_commit": "9f4dd660",
+        "hardware": {
+          "platform": "Windows-10-10.0.26200-SP0",
+          "machine": "AMD64",
+          "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+          "cpu_count": 16,
+          "ram_gb": null,
+          "python": "3.11.9",
+          "numpy": "2.4.6"
+        },
+        "experiment": "ablation_rollout",
+        "config": {
+          "size": 11,
+          "rule": "vietnam",
+          "openings_file": "configs/openings.json",
+          "num_openings": 100,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "workers": 1,
+          "name": "ablation_rollout",
+          "mode": "B",
+          "budget": null,
+          "agents": {
+            "mcts_random": {
+              "type": "mcts",
+              "params": {
+                "simulations": 1600,
+                "rollout": "random",
+                "use_forced_move": false
+              }
+            },
+            "mcts_heuristic": {
+              "type": "mcts",
+              "params": {
+                "simulations": 1600,
+                "rollout": "heuristic",
+                "use_forced_move": false
+              }
+            }
+          }
+        },
+        "workers": 8,
+        "games_total": 600,
+        "games_already_done": 592,
+        "games_this_run": 8,
+        "purpose": "Rerun eight suspension-contaminated timing samples",
+        "game_ids": [
+          "mcts_random__mcts_heuristic__s0__o071__ab",
+          "mcts_random__mcts_heuristic__s0__o071__ba",
+          "mcts_random__mcts_heuristic__s0__o073__ab",
+          "mcts_random__mcts_heuristic__s0__o073__ba",
+          "mcts_random__mcts_heuristic__s0__o074__ab",
+          "mcts_random__mcts_heuristic__s0__o074__ba",
+          "mcts_random__mcts_heuristic__s0__o075__ab",
+          "mcts_random__mcts_heuristic__s0__o075__ba"
+        ]
+      }
+    ],
+    "rq1_0.1s": [
+      {
+        "started_at": "2026-11-10T15:37:00+00:00",
+        "git_commit": "9f4dd660",
+        "hardware": {
+          "platform": "Windows-10-10.0.26200-SP0",
+          "machine": "AMD64",
+          "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+          "cpu_count": 16,
+          "ram_gb": null,
+          "python": "3.11.9",
+          "numpy": "2.4.6"
+        },
+        "experiment": "rq1_0.1s",
+        "engine_version": "1.0.0",
+        "config": {
+          "size": 11,
+          "rule": "vietnam",
+          "openings_file": "configs/openings.json",
+          "num_openings": 100,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "workers": 1,
+          "name": "rq1_0.1s",
+          "mode": "A",
+          "budget": 0.1,
+          "agents": {
+            "ab": {
+              "type": "alphabeta",
+              "params": {
+                "depth": 3
+              }
+            },
+            "mcts": {
+              "type": "mcts",
+              "params": {
+                "rollout": "random",
+                "use_forced_move": false
+              }
+            }
+          }
+        },
+        "workers": 8,
+        "games_total": 600,
+        "games_already_done": 0,
+        "games_this_run": 600
+      }
+    ],
+    "rq1_0.5s": [
+      {
+        "started_at": "2026-11-10T15:38:16+00:00",
+        "git_commit": "9f4dd660",
+        "hardware": {
+          "platform": "Windows-10-10.0.26200-SP0",
+          "machine": "AMD64",
+          "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+          "cpu_count": 16,
+          "ram_gb": null,
+          "python": "3.11.9",
+          "numpy": "2.4.6"
+        },
+        "experiment": "rq1_0.5s",
+        "engine_version": "1.0.0",
+        "config": {
+          "size": 11,
+          "rule": "vietnam",
+          "openings_file": "configs/openings.json",
+          "num_openings": 100,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "workers": 1,
+          "name": "rq1_0.5s",
+          "mode": "A",
+          "budget": 0.5,
+          "agents": {
+            "ab": {
+              "type": "alphabeta",
+              "params": {
+                "depth": 3
+              }
+            },
+            "mcts": {
+              "type": "mcts",
+              "params": {
+                "rollout": "random",
+                "use_forced_move": false
+              }
+            }
+          }
+        },
+        "workers": 8,
+        "games_total": 600,
+        "games_already_done": 0,
+        "games_this_run": 600
+      }
+    ],
+    "rq1_1.0s": [
+      {
+        "started_at": "2026-11-10T15:43:18+00:00",
+        "git_commit": "9f4dd660",
+        "hardware": {
+          "platform": "Windows-10-10.0.26200-SP0",
+          "machine": "AMD64",
+          "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+          "cpu_count": 16,
+          "ram_gb": null,
+          "python": "3.11.9",
+          "numpy": "2.4.6"
+        },
+        "experiment": "rq1_1.0s",
+        "engine_version": "1.0.0",
+        "config": {
+          "size": 11,
+          "rule": "vietnam",
+          "openings_file": "configs/openings.json",
+          "num_openings": 100,
+          "seeds": [
+            0,
+            1,
+            2
+          ],
+          "workers": 1,
+          "name": "rq1_1.0s",
+          "mode": "A",
+          "budget": 1.0,
+          "agents": {
+            "ab": {
+              "type": "alphabeta",
+              "params": {
+                "depth": 3
+              }
+            },
+            "mcts": {
+              "type": "mcts",
+              "params": {
+                "rollout": "random",
+                "use_forced_move": false
+              }
+            }
+          }
+        },
+        "workers": 8,
+        "games_total": 600,
+        "games_already_done": 0,
+        "games_this_run": 600
+      }
+    ]
+  },
+  "notes": [
+    "5000 bootstrap samples by opening; both colors and three seeds stay together.",
+    "All games replayed and checked against the exact planned schedule.",
+    "Time budgets are soft; over_budget_10pct counts moves exceeding budget by 10%.",
+    "Worker counts are recorded per run; timings depend on shared CPU load.",
+    "excluded_suspension.jsonl.gz contains audit-only records, excluded from all results."
+  ],
+  "source_sha256": {
+    "agents\\__init__.py": "44b38d78e115b5b8e0633461158faffe00864a076e89afefad32317a8adf6835",
+    "agents\\alphabeta_agent.py": "786b2c9cc8e18393ca50d8b44243644c3fa4c03a294e1c16c6b9d832a932c73c",
+    "agents\\base.py": "11c318d27d2056da27aa6ed4e2f4ddbb5108f92988484018a7df27be3dd485ec",
+    "agents\\fast_eval.py": "7528b93d5aadbb6fece4d545caf7d249ceb1a9f09b92c50b2277450001cfe988",
+    "agents\\fast_rollout.py": "5dffa6319817b4ba86913262aabb5d021894a0ebc7c053c474dea6e3f0ca32b0",
+    "agents\\heuristic_agent.py": "9608ab7aef40b0c0f0682014a9279375a89d41f54cbc31ee7e77f5179f085ecb",
+    "agents\\mcts_agent.py": "3bef5f78ccc6445c5e2bd6c622f3bb5a52c7c93ecebda9de2dc4d3751d3845bf",
+    "agents\\network.py": "0111024bdbbc44445c539103b3a504a8fa79c648c752b588f57dfb4e14bab0c7",
+    "agents\\puct_agent.py": "0d5f980ade682c9691358d16f2c923d86859a57ad8cd76c10b0349a1238ee40f",
+    "agents\\random_agent.py": "3730dda222dd4a34038a35a4b79a9e167f670bbef4b32a0c74eb3a05cb26b14c",
+    "arena\\__init__.py": "6f063f67696c2212e33b4b0a9111ccc5474852d133a675b609cb5b1d4a2b6482",
+    "arena\\agent_factory.py": "1b456b425a4b46a48290a6d10cc1b0a04a83e582225b52d16cb52bbae5a1ba18",
+    "arena\\logger.py": "c2b1a370181596c09fb29dce755cd39502594491c1fd4f7c0b043adf9137a564",
+    "arena\\match.py": "baa8ff626065de25112bb298b25f863f36ad8040c4ba597e56bb34ab14e9ddda",
+    "arena\\openings.py": "dc24abe3cf0d2958de063697ecd67657fc55adf58a6f86f05bdb1237ec098a9f",
+    "arena\\runtime.py": "4a4bb0c59d1f7d5c3858d1772659c01be211d9e8dab0bb6008a9ffcd7cda4127",
+    "arena\\tournament.py": "eca6f311c9ccc5959ba3555807e1ff0ad3ba2c239181cc7b5bdbe886413eac41",
+    "game\\__init__.py": "98f2d868565a80e2ecd77124cde40749bc74884cc901f6601bfc9249d285704e",
+    "game\\constants.py": "b08be0ef4294a0b77e6d2f65ae9e4047478afc6d47611b6a2ed84716e843cc33",
+    "game\\game.py": "7346630220f7ddef711fcae8f8690700d75f2ee989b246292ee829a094416452",
+    "game\\patterns.py": "0583c5b7e1707f4cf29a0fe50959b0dfcb74abcbfbd80e1ad93fdcaa0f4fc570",
+    "game\\rules.py": "04f6f0e8cccb9ad124ce00be3444e25c266aaa2e5ea93cd67cbf87bf3db4eeb2",
+    "analysis\\__init__.py": "f3a3436b450a49b2114e12fb5ea9fbb637290740ca2043b67ff184d439f0ffa6",
+    "analysis\\ablation.py": "aa6c3c06c4418d6449ee055274713c620c0e7b4691f1bb3699cfe99524f5aedb",
+    "analysis\\ablation_results.py": "489c8c3f7de7e60b8fc98c5fb0f330dad16aca1c51f74758f1bd1a0fe6d35339",
+    "analysis\\arena_stats.py": "f2c1b7ab3912842248f61db59fc85bfdb3a99449011c6c691157b19fa1f3c539",
+    "analysis\\summarize.py": "fb98ed25387ccb61123cbdcb28bfb2341149e6f3a8c1f3a3d3a8cbb66b06305e"
+  },
+  "openings_sha256": "f86ddd9fc1d77f74c879ed94c1aa077191abc3b2009260a0b3dbfda0ff7fcb86",
+  "timing_repair": {
+    "reason": "Observed global suspension: requested 50s sleep returned after 1604.8542s",
+    "criterion": "Per-move elapsed time above 600000ms in this observed suspension episode",
+    "rerun_games": 8,
+    "fixed_simulation_actions_results_and_tree_stats_identical": true,
+    "original_log_sha256": "fe421aee3ac59a295c0ca575a09fd10a007d0aba49c0288bc91c1eb698a87949",
+    "repaired_log_sha256": "fecdbde36bcea15acad2a1ea8ab75f0733121cdfcc1cb5306274afc658cf5567",
+    "games": [
+      {
+        "game_id": "mcts_random__mcts_heuristic__s0__o071__ab",
+        "excluded_duration_s": 1623.186,
+        "replacement_duration_s": 16.427
+      },
+      {
+        "game_id": "mcts_random__mcts_heuristic__s0__o071__ba",
+        "excluded_duration_s": 1622.249,
+        "replacement_duration_s": 16.116
+      },
+      {
+        "game_id": "mcts_random__mcts_heuristic__s0__o073__ab",
+        "excluded_duration_s": 1623.692,
+        "replacement_duration_s": 16.467
+      },
+      {
+        "game_id": "mcts_random__mcts_heuristic__s0__o073__ba",
+        "excluded_duration_s": 1619.21,
+        "replacement_duration_s": 14.883
+      },
+      {
+        "game_id": "mcts_random__mcts_heuristic__s0__o074__ab",
+        "excluded_duration_s": 1619.534,
+        "replacement_duration_s": 14.867
+      },
+      {
+        "game_id": "mcts_random__mcts_heuristic__s0__o074__ba",
+        "excluded_duration_s": 1610.685,
+        "replacement_duration_s": 9.666
+      },
+      {
+        "game_id": "mcts_random__mcts_heuristic__s0__o075__ab",
+        "excluded_duration_s": 1619.286,
+        "replacement_duration_s": 15.518
+      },
+      {
+        "game_id": "mcts_random__mcts_heuristic__s0__o075__ba",
+        "excluded_duration_s": 1613.714,
+        "replacement_duration_s": 12.961
+      }
+    ]
+  },
+  "alphabeta_measurement": {
+    "conditions": "Serial benchmark after full integrated-main pytest finished",
+    "depths": [
+      2,
+      3
+    ],
+    "positions": 10,
+    "started_at": "2026-11-10T16:16:59.548923+00:00",
+    "hardware": {
+      "platform": "Windows-10-10.0.26200-SP0",
+      "machine": "AMD64",
+      "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+      "cpu_count": 16,
+      "ram_gb": null,
+      "python": "3.11.9",
+      "numpy": "2.4.6"
+    },
+    "main_revision": "0f8f44781fc9ab3486c761d8cbc32ce7f2d5a220"
+  },
+  "prior_alphabeta_measurement": {
+    "conditions": "Serial benchmark, after all tournament workers and tests have exited",
+    "depth": 3,
+    "positions": 10,
+    "started_at": "2026-11-10T15:53:41.753109+00:00",
+    "hardware": {
+      "platform": "Windows-10-10.0.26200-SP0",
+      "machine": "AMD64",
+      "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+      "cpu_count": 16,
+      "ram_gb": null,
+      "python": "3.11.9",
+      "numpy": "2.4.6"
+    }
+  },
+  "review_validation": {
+    "main_revision": "0f8f44781fc9ab3486c761d8cbc32ce7f2d5a220",
+    "validated_games": 4800,
+    "tests": 219,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "test_seconds": 60.891,
+    "test_scope": "Entire do-an-caro suite: origin/main with issue8 source and tests overlaid; factory unchanged from main",
+    "junit_sha256": "fdef624b3f5859f509b4e133aa6ff95ae9cafcfbe80cf41511a9f13f5518c65f",
+    "physical_cores": 12,
+    "logical_processors": 16,
+    "tournament_workers": 8,
+    "note": "Historical tournament provenance is unchanged; games were replayed, not rerun on this revision.",
+    "source_sha256": {
+      "agents\\__init__.py": "1acdcaeae7ad0775ae2205997d5e6273afbbac7c5e2d2742431cfde5322311b7",
+      "agents\\alphabeta_agent.py": "786b2c9cc8e18393ca50d8b44243644c3fa4c03a294e1c16c6b9d832a932c73c",
+      "agents\\base.py": "11c318d27d2056da27aa6ed4e2f4ddbb5108f92988484018a7df27be3dd485ec",
+      "agents\\fast_eval.py": "7528b93d5aadbb6fece4d545caf7d249ceb1a9f09b92c50b2277450001cfe988",
+      "agents\\fast_rollout.py": "5dffa6319817b4ba86913262aabb5d021894a0ebc7c053c474dea6e3f0ca32b0",
+      "agents\\heuristic_agent.py": "9608ab7aef40b0c0f0682014a9279375a89d41f54cbc31ee7e77f5179f085ecb",
+      "agents\\mcts_agent.py": "3bef5f78ccc6445c5e2bd6c622f3bb5a52c7c93ecebda9de2dc4d3751d3845bf",
+      "agents\\network.py": "33bd4e2ffc9307b01fe8d3b9455656be2d766eac013330c389d6a2656767ba61",
+      "agents\\puct_agent.py": "0d5f980ade682c9691358d16f2c923d86859a57ad8cd76c10b0349a1238ee40f",
+      "agents\\random_agent.py": "3730dda222dd4a34038a35a4b79a9e167f670bbef4b32a0c74eb3a05cb26b14c",
+      "agents\\rl_agent.py": "858c7b7c4845f3dec3bf9243b9e5a5251d521c4514143e9a222e29beea086134",
+      "agents\\supervised_policy_value_network_agent.py": "bc4b19a2009b352908347b1bdf7f928943bef4a17c5c9c4799ca06df7dbfd298",
+      "arena\\__init__.py": "6f063f67696c2212e33b4b0a9111ccc5474852d133a675b609cb5b1d4a2b6482",
+      "arena\\agent_factory.py": "0aa09ccc0af646d8f757fbbd67473f72128fc6b20e5779c9b1f75f8946751662",
+      "arena\\logger.py": "c2b1a370181596c09fb29dce755cd39502594491c1fd4f7c0b043adf9137a564",
+      "arena\\match.py": "baa8ff626065de25112bb298b25f863f36ad8040c4ba597e56bb34ab14e9ddda",
+      "arena\\openings.py": "dc24abe3cf0d2958de063697ecd67657fc55adf58a6f86f05bdb1237ec098a9f",
+      "arena\\runtime.py": "4a4bb0c59d1f7d5c3858d1772659c01be211d9e8dab0bb6008a9ffcd7cda4127",
+      "arena\\tournament.py": "eca6f311c9ccc5959ba3555807e1ff0ad3ba2c239181cc7b5bdbe886413eac41",
+      "game\\__init__.py": "98f2d868565a80e2ecd77124cde40749bc74884cc901f6601bfc9249d285704e",
+      "game\\constants.py": "b08be0ef4294a0b77e6d2f65ae9e4047478afc6d47611b6a2ed84716e843cc33",
+      "game\\game.py": "7346630220f7ddef711fcae8f8690700d75f2ee989b246292ee829a094416452",
+      "game\\patterns.py": "0583c5b7e1707f4cf29a0fe50959b0dfcb74abcbfbd80e1ad93fdcaa0f4fc570",
+      "game\\rules.py": "04f6f0e8cccb9ad124ce00be3444e25c266aaa2e5ea93cd67cbf87bf3db4eeb2",
+      "analysis\\__init__.py": "f3a3436b450a49b2114e12fb5ea9fbb637290740ca2043b67ff184d439f0ffa6",
+      "analysis\\ablation.py": "8d78f8d779aa90c00ce7b36e1d9343dbf32c68da2e4b9624094d3920e71bd6e2",
+      "analysis\\ablation_results.py": "0a0b7f761fb78dc8ba3a82a3eddb0ccc402668c33a149f670351ee9aa6fdc87a",
+      "analysis\\arena_stats.py": "f2c1b7ab3912842248f61db59fc85bfdb3a99449011c6c691157b19fa1f3c539",
+      "analysis\\rq3_learning_curve.py": "67fc3c9d7cf9380c2f33bfd4ee9538763911f9075e88756e55f38acac9f11196",
+      "analysis\\summarize.py": "fb98ed25387ccb61123cbdcb28bfb2341149e6f3a8c1f3a3d3a8cbb66b06305e"
+    }
+  }
+}
