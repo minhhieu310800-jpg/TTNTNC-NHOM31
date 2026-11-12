@@ -15,17 +15,20 @@ episodes_per_round: 1000   # 20 vòng => lưu 20 checkpoint trung gian cho đư�
 rollout_batch_games: 64    # Chơi song song 64 ván để gom batch suy luận trên GPU
 minibatch_size: 256
 
-# Tối ưu Actor-Critic (chống quên thảm họa)
-lr: 0.0001                 # lr 1e-4 phù hợp fine-tune RL từ SL
+# Tối ưu Actor-Critic (chống quên thảm họa & ổn định policy gradient)
+lr: 0.00001                # 1e-5 thay cho 1e-4 để tránh policy gradient nhảy quá mạnh
 weight_decay: 0.0001
 value_coef: 0.5
 entropy_coef: 0.01         # giữ khám phá, tránh policy collapse
+kl_coef: 0.05              # phạt KL(pi || pi_SL) để policy không trôi xa Cấp 5 (thử 0.05 và 0.1)
+normalize_advantage: true  # chuẩn hóa advantage trong minibatch
+value_warmup_rounds: 0     # số vòng đầu chỉ train đầu value (tùy chọn 1–2 nếu muốn khởi ấm baseline)
 grad_clip: 1.0
 augment: true              # 8 phép đối xứng D4 khi cập nhật gradient
 
 # Khám phá & Khai cuộc
 temperature: 1.0           # nhiệt độ tau lấy mẫu của tác tử đang học
-opponent_temperature: 0.5  # nhiệt độ đối thủ trong pool (đa dạng nước đi nhưng vẫn mạnh)
+opponent_temperature: 1.0  # bằng temperature để train cân sức, tránh lệch phân phối thưởng âm ngay vòng đầu
 opening_min_moves: 2       # 2–4 nước ngẫu nhiên vùng 5x5 quanh tâm
 opening_max_moves: 4
 center_radius: 2

@@ -11,15 +11,18 @@ episodes_per_round: 8
 rollout_batch_games: 4
 minibatch_size: 8
 
-lr: 0.0001
+lr: 0.00001
 weight_decay: 0.0001
 value_coef: 0.5
 entropy_coef: 0.01
+kl_coef: 0.05
+normalize_advantage: true
+value_warmup_rounds: 0
 grad_clip: 1.0
 augment: true
 
 temperature: 1.0
-opponent_temperature: 0.5
+opponent_temperature: 1.0
 opening_min_moves: 2
 opening_max_moves: 4
 center_radius: 2
