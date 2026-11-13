@@ -143,21 +143,30 @@ def build_rq3_markdown(
 
     if train_records:
         sec_idx = 1 + int(bool(arena_rows)) + int(bool(external_rows))
+        has_kl = any(r.get("kl") is not None for r in train_records)
+        header = "| Vòng | Episodes | Policy Loss | Value Loss | Entropy | "
+        sep = "|---|---|---|---|---|---|"
+        if has_kl:
+            header += "KL | "
+            sep += "---|"
+        header += "Mean Reward | Score vs SL | Wilson 95% | Best |"
+        sep += "---|---|---|"
         lines.extend([
             f"## {sec_idx}. Đường cong học tập theo vòng self-play (`train_log.jsonl`)",
             "",
-            "| Vòng | Episodes | Policy Loss | Value Loss | Entropy | Mean Reward | Score vs SL | Wilson 95% | Best |",
-            "|---|---|---|---|---|---|---|---|---|",
+            header,
+            sep,
         ])
         for rec in train_records:
             lo, hi = rec.get("ci95_vs_sl", [0.0, 0.0])
             pl = f"{rec['policy_loss']:.4f}" if rec.get("policy_loss") is not None else "–"
             vl = f"{rec['value_loss']:.4f}" if rec.get("value_loss") is not None else "–"
             ent = f"{rec['entropy']:.3f}" if rec.get("entropy") is not None else "–"
+            kl_cell = f"{rec['kl']:.4f} | " if (has_kl and rec.get("kl") is not None) else ("– | " if has_kl else "")
             best_mark = "✓" if rec.get("is_best") else ""
             lines.append(
-                f"| {rec['round']} | {rec['episodes']:,} | {pl} | {vl} | {ent} "
-                f"| {rec.get('mean_reward', 0.0):+.3f} | {rec['score_vs_sl']:.3f} | [{lo:.3f}, {hi:.3f}] | {best_mark} |"
+                f"| {rec['round']} | {rec['episodes']:,} | {pl} | {vl} | {ent} | {kl_cell}"
+                f"{rec.get('mean_reward', 0.0):+.3f} | {rec['score_vs_sl']:.3f} | [{lo:.3f}, {hi:.3f}] | {best_mark} |"
             )
         lines.append("")
 
@@ -217,10 +226,23 @@ def plot_rq3_learning_curve(
                 ax1.grid(True, alpha=0.3)
                 ax1_r = ax1.twinx()
                 l2 = ax1_r.plot(u_eps, ent, "^--", color="#2ca02c", label="Policy Entropy")
-                ax1_r.set_ylabel("Entropy (nats)", color="#2ca02c")
                 lines = l1 + l2
+                kl_pts = [(r["episodes"], r["kl"]) for r in upd if r.get("kl") is not None]
+                if kl_pts:
+                    l3 = ax1_r.plot(
+                        [p[0] for p in kl_pts],
+                        [p[1] for p in kl_pts],
+                        "d:",
+                        color="#9467bd",
+                        label="KL(π || π_SL)",
+                    )
+                    lines = lines + l3
+                    ax1_r.set_ylabel("Entropy / KL (nats)", color="#2ca02c")
+                    ax1.set_title("Động lực học Actor-Critic (Value Loss, Entropy & KL)")
+                else:
+                    ax1_r.set_ylabel("Entropy (nats)", color="#2ca02c")
+                    ax1.set_title("Động lực học Actor-Critic (Value Loss & Entropy)")
                 ax1.legend(lines, [l.get_label() for l in lines], loc="best")
-                ax1.set_title("Động lực học Actor-Critic (Value Loss & Entropy)")
 
     if has_arena:
         ax = axes[ax_idx]

@@ -16,6 +16,7 @@ from tests.test_train_supervised_policy_value_network import _create_synthetic_d
 from training.dataset import apply_symmetry
 from training.train_rl import (
     OpponentPool,
+    actor_critic_update,
     batch_symmetry,
     sample_batched_actions,
     train_rl,
@@ -255,3 +256,90 @@ def test_train_rl_best_not_overwritten_on_tie(tmp_path, monkeypatch):
     assert best_meta["epoch"] == 1  # giữ nguyên vòng 1, không bị vòng 2 hòa 0.75 ghi đè
     log_recs = [json.loads(l) for l in (out_dir / "train_log.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
     assert [r["is_best"] for r in log_recs] == [True, True, False]
+
+
+def test_actor_critic_update_kl_and_value_warmup():
+    torch.manual_seed(0)
+    sl_net = PolicyValueNet(blocks=1, channels=8, size=11)
+    model = PolicyValueNet(blocks=1, channels=8, size=11)
+    model.load_state_dict(sl_net.state_dict())
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    rng = np.random.default_rng(11)
+
+    planes = rng.integers(0, 2, size=(16, 4, 11, 11)).astype(np.float32)
+    planes[:, :2, :2, :] = 0.0  # giữ 22 ô đầu trống để actions 0..15 luôn hợp lệ
+    actions = np.arange(16, dtype=np.int64)
+    returns = np.array([1.0 if i % 2 == 0 else -1.0 for i in range(16)], dtype=np.float32)
+
+    policy_w_before = model.policy_fc.weight.detach().clone()
+    stem_bn_before = model.stem[1].running_mean.detach().clone()
+    value_w_before = model.value_fc[0].weight.detach().clone()
+
+    # Warmup chỉ train đầu value: backbone + policy phải giữ nguyên tuyệt đối, policy_loss == 0
+    warmup_metrics = actor_critic_update(
+        model, opt, planes, actions, returns,
+        {"minibatch_size": 8, "kl_coef": 0.05, "normalize_advantage": True, "augment": False},
+        torch.device("cpu"), rng,
+        sl_model=sl_net, value_only=True,
+    )
+    assert warmup_metrics["policy_loss"] == 0.0
+    assert warmup_metrics["kl"] <= 1e-6
+    assert torch.equal(model.policy_fc.weight, policy_w_before)
+    assert torch.equal(model.stem[1].running_mean, stem_bn_before)
+    assert not torch.equal(model.value_fc[0].weight, value_w_before)
+
+    # Bật cập nhật đầy đủ: trọng số policy thay đổi và KL >= 0
+    full_metrics = actor_critic_update(
+        model, opt, planes, actions, returns,
+        {"minibatch_size": 8, "kl_coef": 0.05, "normalize_advantage": True, "augment": False},
+        torch.device("cpu"), rng,
+        sl_model=sl_net, value_only=False,
+    )
+    assert full_metrics["kl"] >= 0.0
+    assert not torch.equal(model.policy_fc.weight, policy_w_before)
+
+
+def test_rl_config_stabilized_and_logs_kl_and_warmup(tmp_path):
+    import yaml
+
+    cfg_path = Path(__file__).resolve().parent.parent / "configs" / "training" / "rl.yaml"
+    cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    assert cfg["lr"] == pytest.approx(1e-5)
+    assert cfg["temperature"] == pytest.approx(1.0)
+    assert cfg["opponent_temperature"] == pytest.approx(1.0)
+    assert cfg["kl_coef"] == pytest.approx(0.05)
+    assert cfg["normalize_advantage"] is True
+
+    sl_ckpt = _make_level5_checkpoint(tmp_path)
+    out_dir = tmp_path / "level6_kl"
+    train_rl(
+        config={
+            "episodes": 8,
+            "episodes_per_round": 4,
+            "rollout_batch_games": 4,
+            "minibatch_size": 8,
+            "lr": 1e-5,
+            "kl_coef": 0.05,
+            "opponent_temperature": 1.0,
+            "normalize_advantage": True,
+            "value_warmup_rounds": 1,
+            "eval_games": 2,
+            "opening_min_moves": 2,
+            "opening_max_moves": 2,
+            "device": "cpu",
+            "seed": 3,
+        },
+        out_dir=out_dir,
+        init_checkpoint=sl_ckpt,
+    )
+    recs = [json.loads(l) for l in (out_dir / "train_log.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(recs) == 3
+    assert recs[0]["kl"] is None
+    assert recs[1]["policy_loss"] == 0.0
+    assert isinstance(recs[1]["kl"], float) and recs[1]["kl"] >= 0.0
+    assert isinstance(recs[2]["kl"], float) and recs[2]["kl"] >= 0.0
+
+    # Vòng 1 chỉ warmup đầu value nên đầu policy vẫn khớp bản neo SL
+    sl_net, _ = load_network(sl_ckpt)
+    r1_net, _ = load_network(out_dir / "rounds" / "round_001.pt")
+    assert torch.equal(r1_net.policy_fc.weight, sl_net.policy_fc.weight)

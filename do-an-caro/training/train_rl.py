@@ -149,7 +149,7 @@ def collect_selfplay_batch(
     size = int(cfg.get("board_size", DEFAULT_BOARD_SIZE))
     rule = str(cfg.get("rule", RULE_VIETNAM))
     temp = float(cfg.get("temperature", 1.0))
-    opp_temp = float(cfg.get("opponent_temperature", 0.5))
+    opp_temp = float(cfg.get("opponent_temperature", 1.0))
     min_open = int(cfg.get("opening_min_moves", 2))
     max_open = int(cfg.get("opening_max_moves", 4))
     center_radius = int(cfg.get("center_radius", 2))
@@ -231,68 +231,106 @@ def actor_critic_update(
     cfg: dict[str, Any],
     device: torch.device,
     rng: np.random.Generator,
+    sl_model: PolicyValueNet | None = None,
+    value_only: bool = False,
 ) -> dict[str, float]:
-    """Cập nhật Actor-Critic (Policy Gradient có baseline Value head) trên một rollout batch."""
+    """Cập nhật Actor-Critic (Policy Gradient có baseline Value head + phạt KL) trên một rollout batch."""
     n = len(actions)
     if n == 0:
-        return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0, "loss": 0.0}
+        return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0, "kl": 0.0, "loss": 0.0}
 
     minibatch_size = int(cfg.get("minibatch_size", 256))
     value_coef = float(cfg.get("value_coef", 0.5))
     entropy_coef = float(cfg.get("entropy_coef", 0.01))
+    kl_coef = float(cfg.get("kl_coef", 0.0))
+    normalize_adv = bool(cfg.get("normalize_advantage", True))
     grad_clip = float(cfg.get("grad_clip", 1.0))
     augment = bool(cfg.get("augment", True))
     size = int(cfg.get("board_size", DEFAULT_BOARD_SIZE))
 
+    if sl_model is not None:
+        sl_model.eval()
+
     model.train()
+    frozen_modules = (model.stem, model.blocks, model.policy_conv, model.policy_fc)
+    if value_only:
+        # Đóng băng backbone và đầu policy (kể cả BatchNorm) khi khởi ấm riêng đầu value
+        for mod in frozen_modules:
+            mod.eval()
+            for p in mod.parameters():
+                p.requires_grad_(False)
+
     order = rng.permutation(n)
-    p_losses, v_losses, ents, tot_losses = [], [], [], []
+    p_losses, v_losses, ents, kls, tot_losses = [], [], [], [], []
 
-    for start in range(0, n, minibatch_size):
-        idx = order[start:start + minibatch_size]
-        p_b = planes[idx].astype(np.float32)
-        a_b = actions[idx]
-        r_b = returns[idx]
+    try:
+        for start in range(0, n, minibatch_size):
+            idx = order[start:start + minibatch_size]
+            p_b = planes[idx].astype(np.float32)
+            a_b = actions[idx]
+            r_b = returns[idx]
 
-        if augment:
-            sym_k = int(rng.integers(NUM_SYMMETRIES))
-            p_b, a_b = batch_symmetry(p_b, a_b, sym_k, size=size)
+            if augment:
+                sym_k = int(rng.integers(NUM_SYMMETRIES))
+                p_b, a_b = batch_symmetry(p_b, a_b, sym_k, size=size)
 
-        x = torch.from_numpy(p_b).to(device)
-        act_t = torch.from_numpy(a_b).to(device)
-        ret_t = torch.from_numpy(r_b).to(device)
+            x = torch.from_numpy(p_b).to(device)
+            act_t = torch.from_numpy(a_b).to(device)
+            ret_t = torch.from_numpy(r_b).to(device)
 
-        logits, values = model(x)
-        logits = mask_illegal_logits(logits, x)
+            logits, values = model(x)
+            logits = mask_illegal_logits(logits, x)
 
-        legal_mask = (x[:, 0] + x[:, 1]).flatten(1) == 0
-        log_probs = F.log_softmax(logits, dim=-1)
-        probs = log_probs.exp()
-        chosen_log_probs = log_probs.gather(1, act_t.unsqueeze(1)).squeeze(1)
+            legal_mask = (x[:, 0] + x[:, 1]).flatten(1) == 0
+            log_probs = F.log_softmax(logits, dim=-1)
+            probs = log_probs.exp()
+            chosen_log_probs = log_probs.gather(1, act_t.unsqueeze(1)).squeeze(1)
 
-        # Baseline là đầu value hiện tại; không chuẩn hóa lệch tâm để giữ đúng dấu thắng/thua
-        advantages = ret_t - values.detach()
-        policy_loss = -(advantages * chosen_log_probs).mean()
-        value_loss = F.mse_loss(values, ret_t)
-        entropy = -(probs * log_probs).masked_fill(~legal_mask, 0.0).sum(dim=-1).mean()
-        loss = policy_loss + value_coef * value_loss - entropy_coef * entropy
+            advantages = ret_t - values.detach()
+            if normalize_adv and advantages.numel() > 1:
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        optimizer.zero_grad()
-        loss.backward()
-        if grad_clip > 0:
-            nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        optimizer.step()
+            policy_loss = -(advantages * chosen_log_probs).mean()
+            value_loss = F.mse_loss(values, ret_t)
+            entropy = -(probs * log_probs).masked_fill(~legal_mask, 0.0).sum(dim=-1).mean()
 
-        p_losses.append(float(policy_loss.item()))
-        v_losses.append(float(value_loss.item()))
-        ents.append(float(entropy.item()))
-        tot_losses.append(float(loss.item()))
+            # Phạt KL(pi || pi_SL) để policy không trôi xa mạng Cấp 5
+            kl = torch.zeros((), device=x.device)
+            if kl_coef > 0 and sl_model is not None:
+                with torch.no_grad():
+                    sl_logits, _ = sl_model(x)
+                    sl_log_probs = F.log_softmax(mask_illegal_logits(sl_logits, x), dim=-1)
+                kl = (probs * (log_probs - sl_log_probs)).masked_fill(~legal_mask, 0.0).sum(dim=-1).mean()
 
-    model.eval()
+            if value_only:
+                loss = value_coef * value_loss
+            else:
+                loss = policy_loss + value_coef * value_loss - entropy_coef * entropy + kl_coef * kl
+
+            optimizer.zero_grad()
+            loss.backward()
+            if grad_clip > 0:
+                trainable = [p for p in model.parameters() if p.requires_grad]
+                nn.utils.clip_grad_norm_(trainable, grad_clip)
+            optimizer.step()
+
+            p_losses.append(0.0 if value_only else float(policy_loss.item()))
+            v_losses.append(float(value_loss.item()))
+            ents.append(float(entropy.item()))
+            kls.append(float(kl.item()))
+            tot_losses.append(float(loss.item()))
+    finally:
+        if value_only:
+            for mod in frozen_modules:
+                for p in mod.parameters():
+                    p.requires_grad_(True)
+        model.eval()
+
     return {
         "policy_loss": float(np.mean(p_losses)),
         "value_loss": float(np.mean(v_losses)),
         "entropy": float(np.mean(ents)),
+        "kl": float(np.mean(kls)),
         "loss": float(np.mean(tot_losses)),
     }
 
@@ -453,8 +491,9 @@ def train_rl(
     episodes_per_round = int(config.get("episodes_per_round", 1000))
     num_rounds = max(1, math.ceil(total_episodes / episodes_per_round))
     rollout_batch = int(config.get("rollout_batch_games", 64))
-    lr = float(config.get("lr", 1e-4))
+    lr = float(config.get("lr", 1e-5))
     weight_decay = float(config.get("weight_decay", 1e-4))
+    value_warmup_rounds = max(0, int(config.get("value_warmup_rounds", 0)))
     size = int(config.get("board_size", DEFAULT_BOARD_SIZE))
     rule = str(config.get("rule", RULE_VIETNAM))
     max_pool_size = int(config.get("max_pool_size", 20))
@@ -543,6 +582,7 @@ def train_rl(
             "policy_loss": None,
             "value_loss": None,
             "entropy": None,
+            "kl": None,
             "mean_reward": 0.0,
             "mean_game_len": 0.0,
             "score_vs_sl": r0_eval["score"],
@@ -577,8 +617,8 @@ def train_rl(
     if start_round > num_rounds:
         print(f"Đã hoàn tất đủ {num_rounds} vòng ({episodes_done:,} episodes). Giữ nguyên best.pt.")
     else:
-        print(f"{'Vòng':>4} | {'Episodes':>8} | {'P-Loss':>8} | {'V-Loss':>8} | {'Ent':>6} | {'Reward':>7} | {'Score SL':>8} | {'CI95':>15} | {'Pool':>4} | {'Time':>6}")
-        print("-" * 100)
+        print(f"{'Vòng':>4} | {'Episodes':>8} | {'P-Loss':>8} | {'V-Loss':>8} | {'Ent':>6} | {'KL':>7} | {'Reward':>7} | {'Score SL':>8} | {'CI95':>15} | {'Pool':>4} | {'Time':>6}")
+        print("-" * 110)
 
         for rnd in range(start_round, num_rounds + 1):
             if max_hours is not None and (time.perf_counter() - t_start) > max_hours * 3600:
@@ -591,7 +631,8 @@ def train_rl(
                 break
 
             ep_in_round = 0
-            p_losses, v_losses, ents, rewards, lengths = [], [], [], [], []
+            is_value_warmup = rnd <= value_warmup_rounds
+            p_losses, v_losses, ents, kls, rewards, lengths = [], [], [], [], [], []
             while ep_in_round < ep_target:
                 n_batch = min(rollout_batch, ep_target - ep_in_round)
                 opp_model, _ = pool.sample_model(rng, device)
@@ -600,12 +641,15 @@ def train_rl(
                     model, optimizer,
                     rollout["planes"], rollout["actions"], rollout["returns"],
                     config, device, rng,
+                    sl_model=sl_baseline,
+                    value_only=is_value_warmup,
                 )
                 ep_in_round += n_batch
                 episodes_done += n_batch
                 p_losses.append(upd["policy_loss"])
                 v_losses.append(upd["value_loss"])
                 ents.append(upd["entropy"])
+                kls.append(upd["kl"])
                 rewards.append(rollout["mean_reward"])
                 lengths.append(rollout["mean_length"])
 
@@ -646,6 +690,7 @@ def train_rl(
                 "policy_loss": round(float(np.mean(p_losses)), 5),
                 "value_loss": round(float(np.mean(v_losses)), 5),
                 "entropy": round(float(np.mean(ents)), 4),
+                "kl": round(float(np.mean(kls)), 5),
                 "mean_reward": round(float(np.mean(rewards)), 4),
                 "mean_game_len": round(float(np.mean(lengths)), 2),
                 "score_vs_sl": eval_res["score"],
@@ -665,7 +710,7 @@ def train_rl(
             mark = "*" if is_best else " "
             print(
                 f"{rnd:4d} | {episodes_done:8d} | {rec['policy_loss']:8.4f} | {rec['value_loss']:8.4f} | "
-                f"{rec['entropy']:6.3f} | {rec['mean_reward']:+7.3f} | {score_vs_sl:7.3f}{mark} | "
+                f"{rec['entropy']:6.3f} | {rec['kl']:7.4f} | {rec['mean_reward']:+7.3f} | {score_vs_sl:7.3f}{mark} | "
                 f"[{lo:.3f}, {hi:.3f}] | {rec['pool_size']:4d} | {r_sec:5.1f}s"
             )
 
@@ -694,6 +739,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rollout-batch", dest="rollout_batch_games", type=int, help="Số ván chơi song song mỗi lô.")
     parser.add_argument("--lr", type=float, help="Learning rate.")
     parser.add_argument("--temperature", type=float, help="Nhiệt độ lấy mẫu khám phá.")
+    parser.add_argument("--opponent-temperature", dest="opponent_temperature", type=float, help="Nhiệt độ lấy mẫu đối thủ trong pool.")
+    parser.add_argument("--kl-coef", dest="kl_coef", type=float, help="Hệ số phạt KL(pi || pi_SL).")
+    parser.add_argument(
+        "--normalize-advantage",
+        dest="normalize_advantage",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Chuẩn hóa advantage theo minibatch.",
+    )
+    parser.add_argument("--value-warmup-rounds", dest="value_warmup_rounds", type=int, help="Số vòng đầu chỉ train đầu value.")
     parser.add_argument("--device", help="Thiết bị ('cuda', 'cpu', 'auto').")
     parser.add_argument("--seed", type=int, help="Seed ngẫu nhiên.")
     parser.add_argument("--max-hours", dest="max_hours", type=float, help="Dừng an toàn sau số giờ.")
