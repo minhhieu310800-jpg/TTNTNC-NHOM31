@@ -1,6 +1,6 @@
 # Chế độ B – cấu hình mặc định minh bạch (proposal mục 6):
-# Alpha-Beta độ sâu 3; MCTS 1.600 mô phỏng; (sau này) PUCT 400 mô phỏng, policy-only 1 lần suy luận.
-# Lưu ý: cần #33 (hàm lượng giá nhanh) trước khi chạy, nếu không Alpha-Beta độ sâu 3 mất ~10 s/nước.
+# Alpha-Beta độ sâu 3; MCTS 1.600 mô phỏng; PUCT 400 mô phỏng (cấp 7, 8); policy 1 lần suy luận (cấp 5, 6).
+# Kết quả không phụ thuộc máy (ngân sách theo số lượng), chỉ thời gian/nước là phụ thuộc máy.
 # python -m arena.tournament configs/arena/mode_b.yaml
 name: mode_b_default
 mode: B                  # budget=None: mỗi tác tử dùng cấu hình chuẩn của nó
@@ -22,3 +22,15 @@ agents:
   mcts:
     type: mcts
     params: {simulations: 1600}
+  sl:                    # cấp 5: argmax policy, 1 lần suy luận
+    type: sl
+    params: {checkpoint: checkpoints/level5/best.pt, device: cpu}
+  rl:                    # cấp 6: RL self-play, argmax policy
+    type: rl
+    params: {checkpoint: checkpoints/level6/best.pt, device: cpu}
+  puct:                  # cấp 7: PUCT 400 mô phỏng + mạng cấp 5
+    type: puct
+    params: {checkpoint: checkpoints/level5/best.pt, simulations: 400, device: cpu}
+  alphazero:             # cấp 8: PUCT 400 mô phỏng + mạng AlphaZero-inspired (vòng 25)
+    type: puct
+    params: {checkpoint: checkpoints/alphazero2/best.pt, simulations: 400, device: cpu}
