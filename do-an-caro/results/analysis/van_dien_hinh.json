@@ -1,0 +1,62 @@
+[
+  {
+    "case": "Cấp 8 gặp Heuristic (chế độ B)",
+    "tag": "alphazero thắng (12/200 ván thắng)",
+    "game_id": "heuristic__alphazero__s0__o054__ab",
+    "source": "results/issue15/mode_b_default.jsonl.gz"
+  },
+  {
+    "case": "Cấp 8 gặp Heuristic (chế độ B)",
+    "tag": "alphazero thua (188/200 ván thua)",
+    "game_id": "heuristic__alphazero__s0__o006__ba",
+    "source": "results/issue15/mode_b_default.jsonl.gz"
+  },
+  {
+    "case": "Cấp 7 PUCT gặp Heuristic (chế độ B)",
+    "tag": "puct thắng (105/200 ván thắng)",
+    "game_id": "heuristic__puct__s0__o053__ba",
+    "source": "results/issue15/mode_b_default.jsonl.gz"
+  },
+  {
+    "case": "Cấp 7 PUCT gặp Heuristic (chế độ B)",
+    "tag": "puct thua (63/200 ván thua)",
+    "game_id": "heuristic__puct__s0__o037__ba",
+    "source": "results/issue15/mode_b_default.jsonl.gz"
+  },
+  {
+    "case": "Cấp 4 MCTS gặp Cấp 5 SL (chế độ B)",
+    "tag": "mcts thắng (2/200 ván thắng)",
+    "game_id": "mcts__sl__s0__o053__ba",
+    "source": "results/issue15/mode_b_default.jsonl.gz"
+  },
+  {
+    "case": "Cấp 4 MCTS gặp Cấp 5 SL (chế độ B)",
+    "tag": "mcts thua (198/200 ván thua)",
+    "game_id": "mcts__sl__s0__o057__ba",
+    "source": "results/issue15/mode_b_default.jsonl.gz"
+  },
+  {
+    "case": "Alpha-Beta độ sâu 3 gặp PUCT 400",
+    "tag": "ab_d3 thắng (15/200 ván thắng)",
+    "game_id": "ab_d3__puct__s0__o094__ba",
+    "source": "results/issue15/ab_depth.jsonl.gz"
+  },
+  {
+    "case": "Alpha-Beta độ sâu 3 gặp PUCT 400",
+    "tag": "ab_d3 thua (185/200 ván thua)",
+    "game_id": "ab_d3__puct__s0__o017__ab",
+    "source": "results/issue15/ab_depth.jsonl.gz"
+  },
+  {
+    "case": "RQ1: MCTS gặp Alpha-Beta (0,5 s/nước)",
+    "tag": "mcts thắng (1/200 ván thắng)",
+    "game_id": "ab__mcts__s0__o004__ba",
+    "source": "results/issue8/rq1_0.5s.jsonl.gz"
+  },
+  {
+    "case": "RQ1: MCTS gặp Alpha-Beta (0,5 s/nước)",
+    "tag": "mcts thua (199/200 ván thua)",
+    "game_id": "ab__mcts__s0__o096__ab",
+    "source": "results/issue8/rq1_0.5s.jsonl.gz"
+  }
+]
