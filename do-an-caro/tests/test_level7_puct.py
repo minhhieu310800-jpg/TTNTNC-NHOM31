@@ -57,7 +57,9 @@ def test_rq2_config_compares_same_network_at_same_simulations():
             assert pair in cfg["pairs"]
 
     tasks = build_schedule(cfg, load_openings(ROOT / cfg["openings_file"]))
-    assert len(tasks) == len(cfg["pairs"]) * 200 * len(cfg["seeds"])
+    # Chỉ cặp có MCTS (ngẫu nhiên) chạy đủ các seed; cặp PUCT–policy tất định chạy seed đầu
+    expected = sum(200 * (len(cfg["seeds"]) if "mcts" in " ".join(pair) else 1) for pair in cfg["pairs"])
+    assert len(tasks) == expected == 4200
     assert len({t.game_id for t in tasks}) == len(tasks)
 
 
