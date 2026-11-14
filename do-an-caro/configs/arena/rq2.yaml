@@ -19,7 +19,7 @@ size: 11
 rule: vietnam
 openings_file: configs/openings.json
 num_openings: 100        # 100 khai cuộc x 2 lượt đổi bên = 200 ván/cặp (proposal: 200 ván/mức)
-seeds: [0]               # 1 seed cho kịp thời gian; thêm 1, 2 nếu còn giờ (chỉ cặp có MCTS chạy thêm)
+seeds: [0, 1, 2]         # 3 seed như giải đấu #15; chỉ cặp có MCTS chạy thêm, cặp PUCT–policy tất định chạy seed đầu
 workers: 4
 
 agents:

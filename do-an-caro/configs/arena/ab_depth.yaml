@@ -1,0 +1,52 @@
+# Ảnh hưởng độ sâu tìm kiếm Alpha-Beta (issue #15, đề bài mục 3.5; proposal mục 6: "độ sâu 2/3/4").
+# Chế độ B (budget=None): mỗi biến thể tìm đúng độ sâu cố định, kết quả không phụ thuộc máy.
+#   ab_d2, ab_d3, ab_d4 : cấp 3 ở độ sâu 2, 3, 4 (cùng hàm lượng giá, cắt tỉa, sắp nước, bảng chuyển vị)
+#   heuristic, sl, puct : đối thủ cố định (cấp 2, cấp 5, cấp 7 PUCT 400 mô phỏng) để so các độ sâu trên cùng thang
+# Alpha-Beta, Heuristic, SL, PUCT đều tất định nên chạy 1 seed (chạy lại cho đúng các ván cũ).
+# Số nút và thời gian mỗi nước được ghi trong log để báo cáo chi phí theo độ sâu.
+#
+# python -m arena.tournament configs/arena/ab_depth.yaml --limit 20   # chạy thử
+# python -m arena.tournament configs/arena/ab_depth.yaml              # chạy đủ 2.400 ván
+# python -m analysis.summarize logs/ab_depth.jsonl --out bang_ab_depth.md
+name: ab_depth
+mode: B
+size: 11
+rule: vietnam
+openings_file: configs/openings.json
+num_openings: 100        # 100 khai cuộc x 2 lượt đổi bên = 200 ván/cặp
+seeds: [0]
+workers: 4
+
+agents:
+  ab_d2:
+    type: alphabeta
+    params: {depth: 2}
+  ab_d3:
+    type: alphabeta
+    params: {depth: 3}
+  ab_d4:
+    type: alphabeta
+    params: {depth: 4}
+  heuristic:
+    type: heuristic
+  sl:
+    type: sl
+    params: {checkpoint: checkpoints/level5/best.pt, device: cpu}
+  puct:
+    type: puct
+    params: {checkpoint: checkpoints/level5/best.pt, simulations: 400, device: cpu}
+
+# 3 cặp giữa các độ sâu + mỗi độ sâu gặp 3 đối thủ cố định -> 12 cặp x 200 ván.
+pairs:
+  - [ab_d2, ab_d3]
+  - [ab_d2, ab_d4]
+  - [ab_d3, ab_d4]
+  - [ab_d2, heuristic]
+  - [ab_d3, heuristic]
+  - [ab_d4, heuristic]
+  - [ab_d2, sl]
+  - [ab_d3, sl]
+  - [ab_d4, sl]
+  - [ab_d2, puct]
+  - [ab_d3, puct]
+  - [ab_d4, puct]

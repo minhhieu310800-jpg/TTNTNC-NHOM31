@@ -1,0 +1,32 @@
+{
+  "state": "completed",
+  "runner_pid": 7828,
+  "started_at": "2026-11-13T13:14:59+07:00",
+  "package": "D:\\TTNTNC\\Nhom31_GiaiDau_CheDoA\\Nhom31_GiaiDau_CheDoA\\do-an-caro",
+  "python": "C:\\Users\\ASUS\\TTNTNC-NHOM31\\do-an-caro\\.venv\\Scripts\\python.exe",
+  "total_games": 10800,
+  "workers": 4,
+  "budget_seconds": 0.5,
+  "console_log": "D:\\TTNTNC\\Nhom31_GiaiDau_CheDoA\\Nhom31_GiaiDau_CheDoA\\do-an-caro\\logs\\console_20261113_131459.log",
+  "archive": "D:\\TTNTNC\\Nhom31_GiaiDau_CheDoA\\Nhom31_GiaiDau_CheDoA\\logs_che_do_A_Quang.zip",
+  "tournament_pid": 15896,
+  "command": [
+    "C:\\Users\\ASUS\\TTNTNC-NHOM31\\do-an-caro\\.venv\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-u",
+    "-m",
+    "arena.tournament",
+    "configs/arena/mode_a.yaml",
+    "--workers",
+    "4"
+  ],
+  "updated_at": "2026-11-13T15:49:23+07:00",
+  "completed_games": 10800,
+  "agent_errors": 0,
+  "duplicate_games": 0,
+  "invalid_lines": 0,
+  "finished_at": "2026-11-13T15:49:23+07:00",
+  "exit_code": 0,
+  "protected_files_unchanged": true
+}

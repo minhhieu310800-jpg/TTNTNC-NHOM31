@@ -9,7 +9,7 @@ size: 11
 rule: vietnam
 openings_file: configs/openings.json
 num_openings: 100        # 100 khai cuộc x 2 lượt đổi bên = 200 ván/cặp
-seeds: [0, 1, 2]         # Random, MCTS (và RL sau này) chạy thêm 3 seed
+seeds: [0, 1, 2]         # cặp có Random/MCTS chạy 3 seed; cặp tất định chạy seed đầu
 workers: 4               # không vượt quá số nhân CPU vật lý để đo thời gian chính xác
 
 agents:
@@ -18,6 +18,18 @@ agents:
   heuristic:
     type: heuristic
   alphabeta:
-    type: alphabeta      # mặc định hiện tại; #33 sẽ đổi sang hàm lượng giá nhanh
+    type: alphabeta      # đào sâu lặp tới độ sâu 4 trong ngân sách
   mcts:
     type: mcts           # MCTS thuần: rollout ngẫu nhiên tới hết ván
+  sl:                    # cấp 5: argmax policy, 1 lần suy luận (không dùng hết ngân sách)
+    type: sl
+    params: {checkpoint: checkpoints/level5/best.pt, device: cpu}
+  rl:                    # cấp 6: RL self-play, argmax policy
+    type: rl
+    params: {checkpoint: checkpoints/level6/best.pt, device: cpu}
+  puct:                  # cấp 7: PUCT + mạng cấp 5, chạy theo ngân sách thời gian
+    type: puct
+    params: {checkpoint: checkpoints/level5/best.pt, device: cpu}
+  alphazero:             # cấp 8: PUCT + mạng AlphaZero-inspired (vòng 25)
+    type: puct
+    params: {checkpoint: checkpoints/alphazero2/best.pt, device: cpu}
