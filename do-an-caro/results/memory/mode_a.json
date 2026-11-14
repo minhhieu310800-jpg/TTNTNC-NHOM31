@@ -1,0 +1,117 @@
+{
+  "config": "configs/arena/mode_a.yaml",
+  "openings": 3,
+  "platform": "macOS-14.6.1-arm64-arm-64bit-Mach-O",
+  "python": "3.15.2",
+  "opponent": "heuristic",
+  "rows": [
+    {
+      "agent": "random",
+      "type": "random",
+      "params": {},
+      "games": 6,
+      "opponent": "heuristic",
+      "agent_moves": 20,
+      "baseline_rss_mb": 244.7,
+      "peak_rss_mb": 244.8,
+      "agent_extra_mb": 0.1,
+      "wall_s": 0.5
+    },
+    {
+      "agent": "heuristic",
+      "type": "heuristic",
+      "params": {},
+      "games": 6,
+      "opponent": "heuristic",
+      "agent_moves": 354,
+      "baseline_rss_mb": 245.2,
+      "peak_rss_mb": 245.5,
+      "agent_extra_mb": 0.2,
+      "wall_s": 17.0
+    },
+    {
+      "agent": "alphabeta",
+      "type": "alphabeta",
+      "params": {},
+      "games": 6,
+      "opponent": "heuristic",
+      "agent_moves": 125,
+      "baseline_rss_mb": 244.9,
+      "peak_rss_mb": 277.4,
+      "agent_extra_mb": 32.5,
+      "wall_s": 55.0
+    },
+    {
+      "agent": "mcts",
+      "type": "mcts",
+      "params": {},
+      "games": 6,
+      "opponent": "heuristic",
+      "agent_moves": 28,
+      "baseline_rss_mb": 244.1,
+      "peak_rss_mb": 294.0,
+      "agent_extra_mb": 49.9,
+      "wall_s": 14.9
+    },
+    {
+      "agent": "sl",
+      "type": "sl",
+      "params": {
+        "checkpoint": "checkpoints/level5/best.pt",
+        "device": "cpu"
+      },
+      "games": 6,
+      "opponent": "heuristic",
+      "agent_moves": 106,
+      "baseline_rss_mb": 244.2,
+      "peak_rss_mb": 250.6,
+      "agent_extra_mb": 6.3,
+      "wall_s": 2.3
+    },
+    {
+      "agent": "rl",
+      "type": "rl",
+      "params": {
+        "checkpoint": "checkpoints/level6/best.pt",
+        "device": "cpu"
+      },
+      "games": 6,
+      "opponent": "heuristic",
+      "agent_moves": 118,
+      "baseline_rss_mb": 245.0,
+      "peak_rss_mb": 251.6,
+      "agent_extra_mb": 6.6,
+      "wall_s": 2.6
+    },
+    {
+      "agent": "puct",
+      "type": "puct",
+      "params": {
+        "checkpoint": "checkpoints/level5/best.pt",
+        "device": "cpu"
+      },
+      "games": 6,
+      "opponent": "heuristic",
+      "agent_moves": 169,
+      "baseline_rss_mb": 244.5,
+      "peak_rss_mb": 255.3,
+      "agent_extra_mb": 10.8,
+      "wall_s": 92.1
+    },
+    {
+      "agent": "alphazero",
+      "type": "puct",
+      "params": {
+        "checkpoint": "checkpoints/alphazero2/best.pt",
+        "device": "cpu"
+      },
+      "games": 6,
+      "opponent": "heuristic",
+      "agent_moves": 89,
+      "baseline_rss_mb": 244.2,
+      "peak_rss_mb": 256.1,
+      "agent_extra_mb": 11.9,
+      "wall_s": 47.1
+    }
+  ]
+}

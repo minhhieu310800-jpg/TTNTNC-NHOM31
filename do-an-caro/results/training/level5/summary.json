@@ -1,0 +1,17 @@
+{
+  "best_val_loss": 1.5763,
+  "best_epoch": 54,
+  "patience_counter": 5,
+  "total_training_time_seconds": 1203.38,
+  "test_metrics": {
+    "loss": 1.559301934021641,
+    "policy_loss": 0.8977794434109997,
+    "value_loss": 0.6615224918899585,
+    "top1_acc": 0.6966085853528273,
+    "top3_acc": 0.912076907670739,
+    "value_mae": 0.643351612016096,
+    "samples": 29958
+  },
+  "epochs_ran": 59,
+  "best_checkpoint": "/content/drive/MyDrive/caro/level5/best.pt"
+}

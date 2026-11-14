@@ -1,0 +1,9 @@
+    random: nền   214.2 MB | đỉnh   214.4 MB | tăng    0.2 MB | 20 nước, 1.4 s
+ heuristic: nền   215.9 MB | đỉnh   216.1 MB | tăng    0.2 MB | 354 nước, 40.6 s
+ alphabeta: nền   216.8 MB | đỉnh   261.7 MB | tăng   44.9 MB | 190 nước, 99.5 s
+      mcts: nền   215.1 MB | đỉnh   285.0 MB | tăng   69.9 MB | 23 nước, 22.7 s
+        sl: nền   215.4 MB | đỉnh   223.4 MB | tăng    7.9 MB | 106 nước, 10.3 s
+        rl: nền   217.5 MB | đỉnh   224.1 MB | tăng    6.6 MB | 118 nước, 9.0 s
+      puct: nền   216.7 MB | đỉnh   225.6 MB | tăng    8.8 MB | 78 nước, 44.9 s
+ alphazero: nền   214.3 MB | đỉnh   225.4 MB | tăng   11.1 MB | 74 nước, 45.5 s
+Đã ghi results\memory\mode_a_windows.json và results\memory\mode_a_windows.md
