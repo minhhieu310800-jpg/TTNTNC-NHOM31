@@ -1,0 +1,14 @@
+{
+  "level5": {
+    "checkpoint": "checkpoints/level5/best.pt",
+    "sha256": "b84b3f25326ef16dc64001ee9fa1db310306e516ddd248c94dce6eba6ce54d12"
+  },
+  "level6": {
+    "checkpoint": "checkpoints/level6/best.pt",
+    "sha256": "b66541827cc4a64a8ca2442789e335b1a28533ab1e6cc0e16fe27017c3ac91ac"
+  },
+  "level8": {
+    "checkpoint": "checkpoints/alphazero2/best.pt",
+    "sha256": "a4a79a8ece5f140fef4c6aa8444e7079e35d0633abb54ab4218ef3a1a944f8e9"
+  }
+}

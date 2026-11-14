@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-11-12T06:32:12.614686",
+  "seed": 20261120,
+  "engine_version": "1.0.0",
+  "hardware": {
+    "platform": "Windows-11-10.0.26300-SP0",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 151 Stepping 2, GenuineIntel",
+    "cpu_count": 12,
+    "ram_gb": null,
+    "python": "3.13.9",
+    "numpy": "2.4.6"
+  },
+  "config": {
+    "name": "dataset_sl",
+    "game": {
+      "size": 11,
+      "rule": "vietnam",
+      "win_streak": 5
+    },
+    "generation": {
+      "agent_type": "alphabeta",
+      "num_games": 20000,
+      "depth": 3,
+      "epsilon": 0.1,
+      "radius": 2,
+      "fast_eval": true,
+      "use_pruning": true,
+      "use_move_ordering": true,
+      "ordering": "cheap",
+      "use_tt": true,
+      "min_opening_moves": 2,
+      "max_opening_moves": 4,
+      "center_radius": 2,
+      "seed": 20261120,
+      "workers": 4,
+      "chunk_size": 500
+    },
+    "split": {
+      "train": 0.7,
+      "val": 0.1,
+      "test": 0.2
+    },
+    "deduplication": {
+      "use_symmetries": true,
+      "average_values": true
+    },
+    "output": {
+      "data_dir": "data",
+      "dataset_name": "dataset_sl",
+      "parts_dir": "data/parts"
+    }
+  },
+  "num_games": 20000,
+  "time_elapsed_seconds": 9123.39,
+  "time_per_game_seconds": 0.4562,
+  "outcomes": {
+    "black_wins": 11447,
+    "white_wins": 8552,
+    "draws": 1,
+    "black_win_rate": 0.5724,
+    "white_win_rate": 0.4276
+  },
+  "stats": {
+    "total_raw_states": 284677,
+    "total_unique_states": 168698,
+    "total_duplicates_removed": 76159,
+    "total_leakage_with_train_removed": 39820,
+    "deduplication_ratio": 0.2675,
+    "splits": {
+      "train": {
+        "num_games": 14000,
+        "raw_count": 199194,
+        "unique_count": 123610,
+        "duplicates_count": 75584,
+        "excluded_count": 0,
+        "leakage_with_train_removed": 0
+      },
+      "val": {
+        "num_games": 2000,
+        "raw_count": 28398,
+        "unique_count": 15130,
+        "duplicates_count": 98,
+        "excluded_count": 13170,
+        "leakage_with_train_removed": 13170
+      },
+      "test": {
+        "num_games": 4000,
+        "raw_count": 57085,
+        "unique_count": 29958,
+        "duplicates_count": 477,
+        "excluded_count": 26650,
+        "leakage_with_train_removed": 26650
+      }
+    }
+  },
+  "output_files": {
+    "unified": "data\\dataset_sl.npz",
+    "train": "data\\dataset_sl_train.npz",
+    "val": "data\\dataset_sl_val.npz",
+    "test": "data\\dataset_sl_test.npz",
+    "parts_dir": "data\\parts"
+  }
+}

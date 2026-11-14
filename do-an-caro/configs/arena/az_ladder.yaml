@@ -1,0 +1,66 @@
+# Đối đầu checkpoint cấp 8 (AlphaZero-inspired, đề bài mục 3.2 cấp 8 "đối đầu checkpoint").
+# Gating khi train chỉ so mỗi vòng với bản liền trước (40 ván), nên chỉ đo tiến bộ tương đối.
+# Thí nghiệm này đặt các vòng 1, 5, 10, 15, 20, 25 gặp CÙNG hai đối thủ cố định ngoài vòng self-play
+# (heuristic cấp 2 và SL cấp 5) để đo tiến bộ tuyệt đối theo vòng:
+#   az_pNN : mạng vòng NN, chỉ dùng policy (argmax, không tìm kiếm)
+#   az_sNN : mạng vòng NN + PUCT 100 mô phỏng (bằng số mô phỏng lúc self-play và gating)
+# Mọi tác tử đều tất định nên chạy 1 seed.
+# Cần checkpoints/alphazero2/rounds/round_0NN.pt (Drive MyDrive/caro/alphazero2/rounds).
+#
+# python -m arena.tournament configs/arena/az_ladder.yaml --limit 20   # chạy thử
+# python -m arena.tournament configs/arena/az_ladder.yaml              # chạy đủ 4.800 ván
+# python -m analysis.summarize logs/az_ladder.jsonl --out bang_az_ladder.md
+name: az_ladder
+mode: B
+size: 11
+rule: vietnam
+openings_file: configs/openings.json
+num_openings: 100        # 100 khai cuộc x 2 lượt đổi bên = 200 ván/cặp
+seeds: [0]
+workers: 4
+
+agents:
+  heuristic:
+    type: heuristic
+  sl:
+    type: sl
+    params: {checkpoint: checkpoints/level5/best.pt, device: cpu}
+  az_p01: {type: sl, params: {checkpoint: checkpoints/alphazero2/rounds/round_001.pt, device: cpu}}
+  az_p05: {type: sl, params: {checkpoint: checkpoints/alphazero2/rounds/round_005.pt, device: cpu}}
+  az_p10: {type: sl, params: {checkpoint: checkpoints/alphazero2/rounds/round_010.pt, device: cpu}}
+  az_p15: {type: sl, params: {checkpoint: checkpoints/alphazero2/rounds/round_015.pt, device: cpu}}
+  az_p20: {type: sl, params: {checkpoint: checkpoints/alphazero2/rounds/round_020.pt, device: cpu}}
+  az_p25: {type: sl, params: {checkpoint: checkpoints/alphazero2/rounds/round_025.pt, device: cpu}}
+  az_s01: {type: puct, params: {checkpoint: checkpoints/alphazero2/rounds/round_001.pt, simulations: 100, device: cpu}}
+  az_s05: {type: puct, params: {checkpoint: checkpoints/alphazero2/rounds/round_005.pt, simulations: 100, device: cpu}}
+  az_s10: {type: puct, params: {checkpoint: checkpoints/alphazero2/rounds/round_010.pt, simulations: 100, device: cpu}}
+  az_s15: {type: puct, params: {checkpoint: checkpoints/alphazero2/rounds/round_015.pt, simulations: 100, device: cpu}}
+  az_s20: {type: puct, params: {checkpoint: checkpoints/alphazero2/rounds/round_020.pt, simulations: 100, device: cpu}}
+  az_s25: {type: puct, params: {checkpoint: checkpoints/alphazero2/rounds/round_025.pt, simulations: 100, device: cpu}}
+
+# 12 tác tử cấp 8 x 2 đối thủ cố định = 24 cặp x 200 ván.
+pairs:
+  - [az_p01, heuristic]
+  - [az_p05, heuristic]
+  - [az_p10, heuristic]
+  - [az_p15, heuristic]
+  - [az_p20, heuristic]
+  - [az_p25, heuristic]
+  - [az_p01, sl]
+  - [az_p05, sl]
+  - [az_p10, sl]
+  - [az_p15, sl]
+  - [az_p20, sl]
+  - [az_p25, sl]
+  - [az_s01, heuristic]
+  - [az_s05, heuristic]
+  - [az_s10, heuristic]
+  - [az_s15, heuristic]
+  - [az_s20, heuristic]
+  - [az_s25, heuristic]
+  - [az_s01, sl]
+  - [az_s05, sl]
+  - [az_s10, sl]
+  - [az_s15, sl]
+  - [az_s20, sl]
+  - [az_s25, sl]

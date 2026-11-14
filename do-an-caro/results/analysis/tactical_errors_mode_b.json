@@ -1,0 +1,74 @@
+{
+  "random": {
+    "moves": 6943,
+    "missed_win": 21,
+    "missed_block": 88,
+    "hopeless_block": 36,
+    "lost_position": 1275,
+    "games": 1400,
+    "games_with_error": 95
+  },
+  "heuristic": {
+    "moves": 19366,
+    "missed_win": 0,
+    "missed_block": 0,
+    "hopeless_block": 0,
+    "lost_position": 383,
+    "games": 1400,
+    "games_with_error": 0
+  },
+  "alphabeta": {
+    "moves": 13494,
+    "missed_win": 0,
+    "missed_block": 0,
+    "hopeless_block": 0,
+    "lost_position": 512,
+    "games": 1400,
+    "games_with_error": 0
+  },
+  "mcts": {
+    "moves": 7485,
+    "missed_win": 3,
+    "missed_block": 89,
+    "hopeless_block": 37,
+    "lost_position": 1100,
+    "games": 1400,
+    "games_with_error": 84
+  },
+  "sl": {
+    "moves": 11614,
+    "missed_win": 26,
+    "missed_block": 20,
+    "hopeless_block": 10,
+    "lost_position": 553,
+    "games": 1400,
+    "games_with_error": 43
+  },
+  "rl": {
+    "moves": 12499,
+    "missed_win": 31,
+    "missed_block": 19,
+    "hopeless_block": 17,
+    "lost_position": 478,
+    "games": 1400,
+    "games_with_error": 49
+  },
+  "puct": {
+    "moves": 14034,
+    "missed_win": 29,
+    "missed_block": 33,
+    "hopeless_block": 8,
+    "lost_position": 54,
+    "games": 1400,
+    "games_with_error": 60
+  },
+  "alphazero": {
+    "moves": 11676,
+    "missed_win": 15,
+    "missed_block": 171,
+    "hopeless_block": 50,
+    "lost_position": 684,
+    "games": 1400,
+    "games_with_error": 177
+  }
+}

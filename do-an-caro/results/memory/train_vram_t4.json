@@ -1,0 +1,11 @@
+{
+  "source": "analysis/do_vram_t4.ipynb, chạy trên runtime Google Colab GPU qua VS Code, 2026-11-14",
+  "gpu": "Tesla T4",
+  "torch": "2.11.0+cu130",
+  "cuda": "13.0",
+  "platform": "Linux-6.6.159+-x86_64-with-glibc2.39",
+  "rows": [
+    {"network": "cap5_6", "blocks": 6, "batch": 256, "params": 483810, "peak_allocated_mb": 381.8, "peak_reserved_mb": 514.0},
+    {"network": "cap8", "blocks": 4, "batch": 256, "params": 335842, "peak_allocated_mb": 319.6, "peak_reserved_mb": 474.0}
+  ]
+}

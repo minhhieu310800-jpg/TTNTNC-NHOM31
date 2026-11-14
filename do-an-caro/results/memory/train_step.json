@@ -1,0 +1,26 @@
+{
+  "platform": "macOS-14.6.1-arm64-arm-64bit-Mach-O",
+  "device": "cpu",
+  "rows": [
+    {
+      "network": "cap5_6",
+      "blocks": 6,
+      "channels": 64,
+      "batch": 256,
+      "params": 483810,
+      "baseline_rss_mb": 232.6,
+      "peak_rss_mb": 405.1,
+      "train_extra_mb": 172.6
+    },
+    {
+      "network": "cap8",
+      "blocks": 4,
+      "channels": 64,
+      "batch": 256,
+      "params": 335842,
+      "baseline_rss_mb": 240.3,
+      "peak_rss_mb": 435.3,
+      "train_extra_mb": 195.0
+    }
+  ]
+}

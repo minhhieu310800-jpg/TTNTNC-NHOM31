@@ -1,0 +1,8 @@
+{
+  "episodes_done": 20000,
+  "rounds_done": 20,
+  "best_round": 15,
+  "best_score_vs_sl": 0.62,
+  "total_time_seconds": 151.16,
+  "best_checkpoint": "/content/drive/MyDrive/caro/level6_v2/best.pt"
+}
